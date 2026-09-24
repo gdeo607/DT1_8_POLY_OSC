@@ -1,0 +1,12 @@
+# never commit firmware images or anything unpacked from them
+*.syx
+out/
+release/
+firmware/
+section_*.bin
+# build/test by-products
+bin/*.o
+__pycache__/
+*.pyc
+tests/png/
+.DS_Store

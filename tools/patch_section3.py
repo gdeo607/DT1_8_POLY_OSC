@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # DT1_8_POLY_OSC - patch the MAIN OS section (section 3) of the official OS 1.53 image.
-# Usage: python3 tools/patch_section3.py <official section_3 .bin> <output .bin>
+# Usage: python3 tools/patch_section3.py <official section_3 .bin> <output .bin> [page]
+#        page = scope (default) | spectrum  - the utility on the three-dots key
 # Normally called by tools/build.py. Every patched site first asserts the ORIGINAL bytes, so a wrong or
 # modified input aborts instead of producing a broken image. Our own code comes from bin/ (built from src/).
 # Build history: v2a (POLY machine) -> v2b (sequencer voice rotation) -> v3 (MIDI-track cable) ... -> v3p.
@@ -10,6 +11,9 @@ _bin = _os.path.join(_here, "..", "bin")
 B   = 0x40000400
 SRC = sys.argv[1]
 DST = sys.argv[2]
+PAGE = sys.argv[3] if len(sys.argv) > 3 else "scope"
+assert PAGE in ("scope", "spectrum"), PAGE
+_shell = "scope" if PAGE == "scope" else "scope_spectrum"
 d = bytearray(open(SRC, "rb").read())
 orig = bytes(d)
 def get(a, n): return bytes(orig[a-B:a-B+n])
@@ -157,8 +161,8 @@ expect(0x4007a2d0, "7405"); put(0x4007a2d0, bytes.fromhex("7406"))
 # Tests src/ emu_scope_v3f.py + emu_v3f.py (KEY). Code + 512x16-bit ring live in the body of
 # SongEditView::drawView 0x400abe9c (2028 B; its only reference is vtable slot 4 at 0x401b3760, which keeps pointing here).
 # v3h: code from src/scope.s (no ring inside any more), padded to the v3f size so lock.s stays put.
-SCOPE_CODE = open(_os.path.join(_bin, "scope.bin"), "rb").read()
-SYMS = {p[2]: int(p[0], 16) for p in (ln.split() for ln in open(_os.path.join(_bin, "scope.sym"))) if len(p) == 3}
+SCOPE_CODE = open(_os.path.join(_bin, _shell + ".bin"), "rb").read()
+SYMS = {p[2]: int(p[0], 16) for p in (ln.split() for ln in open(_os.path.join(_bin, _shell + ".sym"))) if len(p) == 3}
 assert len(SCOPE_CODE) <= 1616
 SCOPE_BYTES = SCOPE_CODE + bytes(1616 - len(SCOPE_CODE))
 SCOPE = 0x400abe9c
@@ -271,6 +275,22 @@ assert 0x400aead0 + 1024 <= CAVE_END
 expect(0x400c5104, "42004e75")
 expect(0x401b37ac, "400aaec2"); put(0x401b37ac, l(0x400c5104))
 expect(0x401b3794, "400aaa86"); put(0x401b3794, l(0x400c5104))
+
+# ---------------- page "spectrum": FFT spectrum analyser in place of the waveform ----------------
+# Source src/spectrum.s (linked at 0x400aaa86 -> bin/spectrum.bin), model tests/spec_model.py, test tests/emu_spectrum.py.
+# 0x400aaa86..0x400ab132 (1708 B) = old SongEditView knob handler (primary slot 20 / +4 thunk, repointed in v3p) and
+# LED routine (slot 21 / +104 thunk, repointed in v3l); no other references (checked).
+if PAGE == "spectrum":
+    SPEC_BYTES = open(_os.path.join(_bin, "spectrum.bin"), "rb").read()
+    expect(0x400aaa86, "4fefffe848d70c3c")
+    for _a in (0x401b3794, 0x401b3798, 0x401b37ac, 0x401b380c):
+        assert d[_a - B:_a - B + 4] not in (l(0x400aaa86), l(0x400aaec2), l(0x400aaeca), l(0x400ab128))
+    assert len(SPEC_BYTES) <= 0x400ab132 - 0x400aaa86, len(SPEC_BYTES)
+    put(0x400aaa86, SPEC_BYTES)
+    put(0x400aeed0, bytes(0x400aefe8 - 0x400aeed0))              # SREQ, SRDY, SCNT, SPTR, SWORK, COLH, PK
+    SIN_BYTES = open(_os.path.join(_bin, "spec_sin.bin"), "rb").read()
+    assert len(SIN_BYTES) == 514 and 0x400aefe8 + 514 <= CAVE_END
+    put(0x400aefe8, SIN_BYTES)
 
 # data words in the dead SongTempoMenuView body (SDRAM, ACR0 copyback, not write-protected)
 put(0x400b9100, bytes(8))

@@ -3,7 +3,16 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
-## v3p - 1.5b (latest, HW: not yet)
+## v3q-spectrum - 1.5c (HW: not yet)
+- New build option: the three-dots utility page can be **Spectrum** instead of Scope (`tools/build.py --page spectrum`).
+  Everything else (POLY, tuner, activity boxes, X-Y, YES/NO, keys/knobs/pattern change) is identical.
+- Spectrum: 128 log-spaced columns 30 Hz..20 kHz, 60 dB, falling peaks, ticks at 100 Hz / 1 kHz / 10 kHz.
+  Below 350 Hz from a 512-point FFT of the tuner's 170 ms 3 kHz history (5.9 Hz bins); above from a 1024-point FFT
+  of a 21 ms full-rate capture taken on request by the audio tap. Fixed-point, bit-exact to tests/spec_model.py.
+- Uses the old song-edit knob/LED routines (dead since v3l/v3p) for code; 6 KB allocated once.
+- The build is now split into POLY core + page shell + page; `--page scope` still reproduces 1.5b byte for byte.
+
+## v3p - 1.5b (HW: not yet)
 - The DATA ENTRY knobs pass through the scope to the main screen: pick TRIG/SRC/FLTR/AMP/LFO and turn knobs
   while watching the waveform/tuner. (The inherited song-edit knob handler used to swallow every turn.)
 

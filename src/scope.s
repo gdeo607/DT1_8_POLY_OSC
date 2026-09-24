@@ -11,6 +11,9 @@
 |  KEY   (vtable slot 2): key 5 press: waveform -> X-Y -> close. key 6 -> original. Others -> main screen.
 
     .include "tuner_syms.inc"
+.ifdef SPECTRUM
+    .include "spec_syms.inc"
+.endif
     .set KEYNOT0,  0x400c31f0      | event flags: !bit0 (release)
     .set VLINE,    0x400c1040      | vline(bmp, x, y0, y1, color): color>0 set, 0 clear
     .set OUTWRITE, 0x40071c20
@@ -97,6 +100,12 @@ DRAW:
     lea VLINE,%a4
     tst.l MODEA
     bne .Lxy
+.ifdef SPECTRUM
+| ================= spectrum (page "spectrum": src/spectrum.s) =================
+    move.l %a2,-(%sp)
+    jsr SPEC
+    addq.l #4,%sp
+.else
 | ================= waveform =================
     move.l IDXA,%d7
     subi.l #MARGIN+WIN,%d7
@@ -186,6 +195,7 @@ DRAW:
     addq.l #1,%d5
     cmpi.l #WIN,%d5
     blt .Lpl
+.endif
     bra .Ldots
 | ================= X-Y (goniometer) =================
 .Lxy:
@@ -464,6 +474,11 @@ TAP:
     bne .Ltp
     move.l %d3,IDXA
     jsr TTAP                        | tuner: 3 kHz history (registers preserved)
+.ifdef SPECTRUM
+    move.l 40(%sp),-(%sp)           | out buffer
+    jsr SCAP                        | spectrum capture (registers preserved)
+    addq.l #4,%sp
+.endif
     movem.l (%sp),%d0-%d6/%a0-%a1
     lea 36(%sp),%sp
     rts

@@ -13,11 +13,11 @@
    - CCs (< 120) sent by that MIDI track are applied to all POLY tracks on the channel (e.g. filter sequencing).
    - Notes still go out of MIDI OUT as normal.
 
-## Scope
+## Utility page (Scope or Spectrum, chosen at build time)
 | key | action |
 |---|---|
-| "..." (three dots) | open scope (waveform) -> X-Y -> close |
-| YES | fullscreen waveform on/off |
+| "..." (three dots) | open the page (waveform or spectrum) -> X-Y -> close |
+| YES | fullscreen on/off (main view only, no overlays) |
 | NO | close the scope |
 | PTN / BANK + trig | change pattern (scope stays open, green LEDs show patterns with data) |
 | mutes, page keys, knobs, PLAY/STOP, FUNC combos | work as on the main screen |
@@ -27,6 +27,8 @@
   above a box marks a POLY track.
 - **Bottom-left tuner**: note name, octave and cents (A4 = 440 Hz). `--` = no clear pitch or too quiet.
   It hears the main output: solo a track to tune it; a chord shows its common root.
+- **Spectrum** (Spectrum build): bars 30 Hz (left) .. 20 kHz (right), about 60 dB tall; dots = falling peaks;
+  small ticks under the bars at 100 Hz, 1 kHz, 10 kHz. Bass (< 350 Hz) is finer but reacts more slowly (170 ms window).
 - **X-Y**: mono = vertical line, left-only = "\", right-only = "/", out of phase = horizontal, wide = cloud.
 - Knobs change the parameters of the selected page while the scope is open (the page is hidden behind the scope;
   close it to read values).

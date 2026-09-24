@@ -909,3 +909,23 @@ responsive, mutes/changes work while the scope is open.
   SongEditView +4 slot 2 = thunk 0x400aaec2 -> 0x400aaa86 (primary slot 20): song-row editing, consumed.
   Patched 0x401b37ac and 0x401b3794 -> 0x400c5104 (clr.b d0; rts). 0x400aaa86..0x400aaec6 now dead (~1 KB).
 - Other SongEditView interfaces already stock "false": +8 0x400c5104, +12 0x400be830, +16 0x400c7380.
+
+## v3q-spectrum (version tag 1.5c) (2026-09-24): utility page "spectrum"
+- Build split: POLY core (always) + page shell (src/scope.s: DRAW/TICK/TAP/KEY/TRIG, tuner, boxes, X-Y) + page.
+  `--defsym SPECTRUM=1` swaps the waveform branch for `jsr SPEC` and adds `jsr SCAP(out)` after TTAP in the TAP.
+  Page "scope" output unchanged (sha 3b1258bc..., = v3p).
+- Free space: 0x400aaa86..0x400ab132 (1708 B) = SongEditView knob handler (primary slot 20, +4 thunk 0x400aaec2;
+  repointed in v3p) + LED routine (slot 21, +104 thunk 0x400ab128; repointed in v3l). No other refs.
+  src/spectrum.s linked there (1516 B incl. column/log tables). Quarter-sine table (257 x Q15) at 0x400aefe8.
+- Data after the tuner ring: SREQ 0x400aeed0, SRDY, SCNT, SPTR (capture 1024 x int16), SWORK (re/im 2 x 1024 x int16;
+  6144 B from operator new once), COLH 0x400aeee8 (128 B), PK 0x400aef68 (128 B).
+- Capture: SCAP in the audio ISR (after TTAP) while SREQ: clamp((L+R)>>9) per frame; at 1024 -> SREQ 0, SRDY 1.
+- Analysis (UI, SPEC when SRDY): Hann (Q15), bit reversal, radix-2 DIT, every stage (u+-t)>>1 (bounded by the input
+  magnitude, no overflow), twiddles from the quarter table; |X| ~ max + min/2; log2*16 via msb + 16-entry table;
+  h = (l - 48) * 63 / 160 clamped 0..63. Columns 0..47 (< 350 Hz) from a 512-point FFT of the 3 kHz tuner ring
+  (5.86 Hz bins), 48..127 from the 1024-point capture (46.9 Hz bins). Same scale in both bands. Peaks max(pk-1, h).
+- Draw: rows 0..PYMAX cleared per column; bars from row 8 (normal, 44 rows) / 0 (fullscreen, 63 rows); peak pixel;
+  ticks row 7 at columns 24/68/113 (100 Hz / 1 kHz / 10 kHz). Tuner box and boxes drawn after (rows 0..6).
+- Cost: ~0.58 M instructions per analysis, ~11 k per frame otherwise. ColdFire 5475 has no ff1/exg (replaced).
+- tests/emu_spectrum.py: shared-shell tests of emu_scope.py on this build; capture exact through the real TAP;
+  COLH/PK bit-exact vs tests/spec_model.py for 7 signals x normal/full; pixels; allocation. Mutations caught.

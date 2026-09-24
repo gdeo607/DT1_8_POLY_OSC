@@ -13,8 +13,9 @@ Unofficial, community-made patch set for the 8-track MK1 sampler groovebox ("DT1
 
 | page on the "..." key | release | unit shows | hardware |
 |---|---|---|---|
-| Scope (waveform) | v3p | 1.5b | not yet tested (v3n / 1.5Z confirmed) |
+| Scope (waveform) | v3p | 1.5b | not yet tested |
 | Spectrum | v3q-spectrum | 1.5c | not yet tested |
+| All three views (waveform, spectrum, X-Y) | v3r-all | 1.5d | **confirmed** |
 
 ## Features
 
@@ -42,7 +43,6 @@ Full controls: [docs/USAGE.md](docs/USAGE.md). Version history: [CHANGELOG.md](C
 
 ## Getting it
 
-- **Prebuilt image**: see the repository's *Releases* (private). Check the SHA-256 before flashing.
 - **Build it yourself** from your own copy of the official OS 1.53 file (recommended; identical result):
 
 ```sh
@@ -67,8 +67,7 @@ Flashing and **reverting**: [docs/INSTALL.md](docs/INSTALL.md).
 | `tests/` | emulator tests: the real firmware code runs under unicorn with the patches (`tests/run_tests.sh <official s3> <patched s3> scope|spectrum`) |
 | `docs/` | install/revert, usage, technical notes (reverse-engineering log) |
 
-No firmware from the manufacturer is stored in this repository. Released `.syx` images are attached to
-Releases only; see [DISCLAIMER.md](DISCLAIMER.md).
+No firmware from the manufacturer is stored or distributed here; see [DISCLAIMER.md](DISCLAIMER.md).
 
 ## License
 

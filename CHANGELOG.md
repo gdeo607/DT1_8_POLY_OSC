@@ -3,7 +3,7 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
-## v3r-all - 1.5d (HW: not yet)
+## v3r-all - 1.5d (HW: **confirmed**)
 - All three views in one OS: the "..." key cycles **waveform -> spectrum -> X-Y -> close** (`--page all`).
   Tuner and activity boxes in waveform and spectrum; YES fullscreen and NO close in every view; keys, knobs and
   pattern change as before. Only the view on screen does any work (the spectrum capture/FFT stops when you leave it).

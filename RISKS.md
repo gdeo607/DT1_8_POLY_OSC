@@ -5,7 +5,7 @@
   startup-menu OS upgrade) is untouched, so a unit that fails to start can be recovered by sending the official OS
   over **physical MIDI** from the startup menu ([docs/INSTALL.md](docs/INSTALL.md)). Keep a MIDI interface ready.
 - **Warranty/support**: modified firmware may void the warranty. Revert to the official OS before any service.
-- **Untested builds**: v3o (1.5a), v3p (1.5b) and v3q-spectrum (1.5c) have passed all emulator tests but not yet a hardware test.
+- **Untested builds**: v3o (1.5a), v3p (1.5b) and v3q-spectrum (1.5c) have passed all emulator tests but not yet a hardware test; v3r-all (1.5d) is hardware-confirmed.
   v3n (1.5Z) is the latest hardware-confirmed build.
 
 ## Your projects
@@ -27,5 +27,4 @@
 | Unknown | untested combinations (the manufacturer's USB audio/control software, sample transfer while the scope is open, long sessions) | report issues; revert if in doubt |
 
 ## Legal
-Prebuilt images contain the manufacturer's copyrighted OS. Keep the repository **private**, don't redistribute
-images, and see [DISCLAIMER.md](DISCLAIMER.md). Building from your own official OS file avoids distributing it.
+The manufacturer's OS is copyrighted: don't redistribute firmware images. See [DISCLAIMER.md](DISCLAIMER.md).

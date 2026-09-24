@@ -13,8 +13,7 @@
 - The **operating system is the manufacturer's copyrighted work**. This repository contains only independently
   written patch code, build/test scripts and documentation; it does not contain the manufacturer's firmware.
   The build script needs *your own* copy of the official OS file, downloaded by you from the manufacturer.
-- Any prebuilt image attached to a release is a modified copy of that copyrighted OS, provided **only for personal
-  use by owners of the hardware**, for interoperability. Do not redistribute it, sell it or bundle it.
+- No prebuilt images are distributed by this project.
 - If the manufacturer or any rights holder objects to anything here, open an issue or contact the repository owner
   and it will be taken down promptly.
 - Reverse-engineering notes in `docs/` exist to document interoperability work; they contain addresses and

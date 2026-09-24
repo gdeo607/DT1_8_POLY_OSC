@@ -8,8 +8,6 @@
 
 ## Get the image
 - Build it: `python3 tools/build.py --official <official OS 1.53 .syx> --tool <container tool>` (see README), or
-- download it from the private Releases and check: `shasum -a 256 DT1_8_POLY_OSC_v3p_1.5b.syx`
-  -> `f8cd0d721c265a07077078a5aae95908c265ce3fadd0c83cbbb377916b51b8b3`
 
 ## Flash
 1. Connect the unit by USB, open the transfer app, drop the `.syx` onto it, confirm with YES on the unit.

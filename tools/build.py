@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the DT1_8_POLY_OSC firmware image from YOUR copy of the official OS 1.53 file.
 
-    python3 tools/build.py --official <official OS 1.53 .syx> --tool <path to container tool> [--page scope|spectrum] [--out out/]
+    python3 tools/build.py --official <official OS 1.53 .syx> --tool <path to container tool> [--page scope|spectrum|all] [--out out/]
 
 --page chooses the utility on the three-dots key (POLY is always included, Song mode is always removed).
 
@@ -22,6 +22,8 @@ PAGES = {
                  "f8cd0d721c265a07077078a5aae95908c265ce3fadd0c83cbbb377916b51b8b3"),
     "spectrum": ("v3q-spectrum", "1.5c", "154c6fe55633a1f5dcde36ed1c21fadb96bd08ff6e5238dd93ef29fb3604a34e",
                  "3aeb2bb8c4a79c7a807d4ee62336ba8e045078d6ae3d122d64e53a0c8851564a"),
+    "all":      ("v3r-all",      "1.5d", "56432ec50c2c54db650ca99d029e1dbf760a7da7e81924c46005542b04fd8b0e",
+                 "1549eb965cbfadc09fba893a1296f62b40a2a30b8d9e2923955864d1b907d101"),
 }
 OFFICIAL_SYX = "9bdd44bb6102fb25c143cfab97bc92b7a89c463f795d3112dce89771e29bcc92"
 OFFICIAL_S3  = "4b47a9507758ca5669ca02ab2c0374d2c04c98aece445408295cc1dcb265c5df"

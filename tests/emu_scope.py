@@ -221,14 +221,17 @@ def test_draw(M, S, ix, mode, name, ms=True, mach=None, vnote=None, qset=True, t
     return px
 
 # ---------------- KEY ----------------
-def test_key():
+def test_key(cycle=None):
+    """cycle: three-dots press, mode -> next mode (None = close). Default: waveform/spectrum (0) -> X-Y (1) -> close."""
+    cycle = cycle or {0: 1, 1: None}
+    combos = [(m, f) for f in (0, 1) for m in sorted(cycle)]
     for ms in (True, False):
         mu = dev(); ms_setup(mu, ms)
         VT, EV, CLOSE = 0x52001200, 0x52001300, 0x52001400
         mu.mem_write(CLOSE, LOGSTUB); mu.mem_write(THIS, l(VT)); mu.mem_write(VT + 40, l(CLOSE))
         for kid in list(range(-2, 60)) + [0x7fffffff]:
             for flags in (0, 1, 2, 3, 4, 5, 8, 9, 0x1f):
-                for mode, full in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                for mode, full in combos:
                     mu.mem_write(MODEA, l(mode)); mu.mem_write(FULLA, l(full))
                     mu.mem_write(EV + 12, l(kid)); mu.mem_write(EV + 16, l(flags))
                     random.seed(kid * 97 + flags * 3 + mode + 7 * full)
@@ -237,7 +240,7 @@ def test_key():
                     pressed = (flags & 1) and not (flags & 8)
                     if kid == 5:
                         assert out[UC_M68K_REG_D0] & 0xff == 1
-                        if pressed and mode == 0: assert lg == [] and m2 == 1 and f2 == full, (kid, flags, mode, lg)
+                        if pressed and cycle[mode] is not None: assert lg == [] and m2 == cycle[mode] and f2 == full, (kid, flags, mode, lg)
                         elif pressed: assert [x[0] for x in lg] == [THIS] and m2 == 0 and f2 == 0, (kid, flags, mode, lg)
                         else: assert lg == [] and m2 == mode and f2 == full
                     elif kid == 12 and not (flags & 2):          # YES

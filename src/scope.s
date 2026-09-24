@@ -14,6 +14,13 @@
 .ifdef SPECTRUM
     .include "spec_syms.inc"
 .endif
+.ifdef ALLVIEWS
+    .set USEWAVE, 1
+.else
+.ifndef SPECTRUM
+    .set USEWAVE, 1
+.endif
+.endif
     .set KEYNOT0,  0x400c31f0      | event flags: !bit0 (release)
     .set VLINE,    0x400c1040      | vline(bmp, x, y0, y1, color): color>0 set, 0 clear
     .set OUTWRITE, 0x40071c20
@@ -98,14 +105,23 @@ DRAW:
 .Lnoms:
     lea RING,%a3
     lea VLINE,%a4
-    tst.l MODEA
+.ifdef ALLVIEWS
+| all three views: MODE 0 waveform, 2 spectrum, 1 X-Y
+    move.l MODEA,%d0
+    beq .Lwav0
+    cmpi.l #2,%d0
     bne .Lxy
-.ifdef SPECTRUM
 | ================= spectrum (page "spectrum": src/spectrum.s) =================
     move.l %a2,-(%sp)
     jsr SPEC
     addq.l #4,%sp
+    bra .Ldots
+.Lwav0:
 .else
+    tst.l MODEA
+    bne .Lxy
+.endif
+.ifdef USEWAVE
 | ================= waveform =================
     move.l IDXA,%d7
     subi.l #MARGIN+WIN,%d7
@@ -195,6 +211,11 @@ DRAW:
     addq.l #1,%d5
     cmpi.l #WIN,%d5
     blt .Lpl
+.else
+| ================= spectrum (page "spectrum": src/spectrum.s) =================
+    move.l %a2,-(%sp)
+    jsr SPEC
+    addq.l #4,%sp
 .endif
     bra .Ldots
 | ================= X-Y (goniometer) =================
@@ -496,6 +517,10 @@ TAP:
 .Ls2:
     rts
 
+.ifdef ALLVIEWS
+| all-views build: TRIG lives in its own section, placed after the spectrum code (0x400ab072)
+    .section .trigtext,"ax"
+.endif
 | ------------------------------------------------------------------ TRIG (audio ISR)
 | Replaces "move.l d3,d2; not.l d2; and.l -76(fp),d2" at 0x40077d72 (8 bytes -> jsr TRIG + nop). 0x40077d72 is the
 | merge point after the optional block 0x40077cf6..0x40077d71 (run only when 0x4199e130 != 0; v3k hooked inside it
@@ -528,6 +553,9 @@ TRIG:
     and.l -76(%fp),%d2
     rts
 
+.ifdef ALLVIEWS
+    .text
+.endif
 | ------------------------------------------------------------------ KEY (vtable slot 2 = consumeKeyEvent)
 | Key ids [ConfirmWindow 0x400bfc9c: 12 = YES (confirm), 13 = NO (cancel)]. The view controller offers keys
 | top-down and stops at the first view that returns true; false passes the key to the main screen.
@@ -612,11 +640,25 @@ KEY:
     addq.l #4,%sp
     tst.b %d0
     beq .Lswal
+.ifdef ALLVIEWS
+    move.l MODEA,%d0                | waveform (0) -> spectrum (2) -> X-Y (1) -> close
+    beq .Lk5w
+    cmpi.l #2,%d0
+    bne .Lclose
+    moveq #1,%d0
+    move.l %d0,MODEA
+    bra .Lswal
+.Lk5w:
+    moveq #2,%d0
+    move.l %d0,MODEA
+    bra .Lswal
+.else
     tst.l MODEA
     bne .Lclose
     moveq #1,%d0
     move.l %d0,MODEA                | waveform -> X-Y
     bra .Lswal
+.endif
 .Lclose:
     clr.l MODEA
     clr.l FULLA

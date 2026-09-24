@@ -6,7 +6,8 @@ OBJCOPY = m68k-linux-gnu-objcopy
 NM      = m68k-linux-gnu-nm
 
 all: bin/tuner.bin bin/tuner_syms.inc bin/scope.bin bin/scope.sym bin/cable.bin bin/cc.bin bin/lock.bin bin/songoff.bin \
-     bin/spectrum.bin bin/spec_syms.inc bin/scope_spectrum.bin bin/scope_spectrum.sym
+     bin/spectrum.bin bin/spec_syms.inc bin/scope_spectrum.bin bin/scope_spectrum.sym \
+     bin/scope_all.bin bin/scope_all_trig.bin bin/scope_all.sym
 
 bin/tuner.elf: src/tuner.s
 	$(AS) -o bin/tuner.o $<
@@ -36,6 +37,16 @@ bin/scope_spectrum.o: src/scope.s bin/tuner_syms.inc bin/spec_syms.inc
 bin/scope_spectrum.bin: bin/scope_spectrum.o
 	$(OBJCOPY) -O binary $< $@
 bin/scope_spectrum.sym: bin/scope_spectrum.o
+	$(NM) $< | grep " t " > $@
+
+# page "all" (waveform -> spectrum -> X-Y): TRIG goes to its own section (placed at 0x400ab072 by the patcher)
+bin/scope_all.o: src/scope.s bin/tuner_syms.inc bin/spec_syms.inc
+	$(AS) -I bin --defsym SPECTRUM=1 --defsym ALLVIEWS=1 -o $@ $<
+bin/scope_all.bin: bin/scope_all.o
+	$(OBJCOPY) -O binary -j .text $< $@
+bin/scope_all_trig.bin: bin/scope_all.o
+	$(OBJCOPY) -O binary -j .trigtext $< $@
+bin/scope_all.sym: bin/scope_all.o
 	$(NM) $< | grep " t " > $@
 
 bin/%.bin: src/%.s

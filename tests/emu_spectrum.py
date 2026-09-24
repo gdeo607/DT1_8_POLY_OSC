@@ -6,6 +6,7 @@
 #  draw         : bars, falling peaks and 100 Hz/1 kHz/10 kHz ticks pixel-exact, normal and fullscreen
 #  allocation   : one 6 KB buffer, capture requested
 # Usage: python3 emu_spectrum.py <section_3 (page spectrum)> <bin/scope_spectrum.sym> <bin/spectrum.elf>
+#        ALLVIEWS=1 python3 emu_spectrum.py <section_3 (page all)> <bin/scope_all.sym> <bin/spectrum.elf>
 import sys, os, struct, random, math
 SEC, SYM, ELF = sys.argv[1:4]
 sys.argv = [sys.argv[0], SEC, SYM]
@@ -29,7 +30,7 @@ def dev():
 
 # ---------------- shared shell (same code paths as the scope page) ----------------
 random.seed(1)
-S.test_key()
+S.test_key({0: 2, 2: 1, 1: None} if os.environ.get('ALLVIEWS') else None)
 blocks = [[(random.getrandbits(24) - (1 << 23), random.getrandbits(24) - (1 << 23)) for _ in range(32)] for _ in range(6)]
 S.test_tap([[(a & 0xffffffff, b & 0xffffffff) for a, b in bl] for bl in blocks])
 for s_ in range(12):

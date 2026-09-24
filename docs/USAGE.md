@@ -16,7 +16,7 @@
 ## Utility page (Scope or Spectrum, chosen at build time)
 | key | action |
 |---|---|
-| "..." (three dots) | open the page (waveform or spectrum) -> X-Y -> close |
+| "..." (three dots) | open the page (waveform or spectrum) -> X-Y -> close; in the all-views build: waveform -> spectrum -> X-Y -> close |
 | YES | fullscreen on/off (main view only, no overlays) |
 | NO | close the scope |
 | PTN / BANK + trig | change pattern (scope stays open, green LEDs show patterns with data) |

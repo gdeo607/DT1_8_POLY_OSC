@@ -910,6 +910,14 @@ responsive, mutes/changes work while the scope is open.
   Patched 0x401b37ac and 0x401b3794 -> 0x400c5104 (clr.b d0; rts). 0x400aaa86..0x400aaec6 now dead (~1 KB).
 - Other SongEditView interfaces already stock "false": +8 0x400c5104, +12 0x400be830, +16 0x400c7380.
 
+## v3r-all (version tag 1.5d) (2026-09-24): three views in one page
+- `--defsym SPECTRUM=1 --defsym ALLVIEWS=1`: DRAW dispatch MODE 0 waveform / 2 spectrum (jsr SPEC) / 1 X-Y; KEY id 5:
+  0 -> 2 -> 1 -> close. Waveform code assembled once (USEWAVE). Shell 1588 B (slot 1616) after moving TRIG (70 B) to
+  section .trigtext, placed at 0x400ab072 (after spectrum.bin, before 0x400ab132); ISR hook 0x40077d72 -> jsr 0x400ab072.
+- SREQ is only set by SPEC, so leaving the spectrum view ends capture after at most one pending 1024-sample grab.
+- tests: emu_allviews.py (modes 0/1 pixel-exact via emu_scope models; mode 2 DRAW == SPEC alone + boxes),
+  ALLVIEWS=1 emu_spectrum.py (3-step key cycle, TAP, capture, FFT); mutations caught. Section sha 56432ec5...
+
 ## v3q-spectrum (version tag 1.5c) (2026-09-24): utility page "spectrum"
 - Build split: POLY core (always) + page shell (src/scope.s: DRAW/TICK/TAP/KEY/TRIG, tuner, boxes, X-Y) + page.
   `--defsym SPECTRUM=1` swaps the waveform branch for `jsr SPEC` and adds `jsr SCAP(out)` after TTAP in the TAP.

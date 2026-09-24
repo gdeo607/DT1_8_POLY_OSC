@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # DT1_8_POLY_OSC - patch the MAIN OS section (section 3) of the official OS 1.53 image.
 # Usage: python3 tools/patch_section3.py <official section_3 .bin> <output .bin> [page]
-#        page = scope (default) | spectrum  - the utility on the three-dots key
+#        page = scope (default) | spectrum | all  - the view(s) on the three-dots key
+#        all = waveform -> spectrum -> X-Y -> close
 # Normally called by tools/build.py. Every patched site first asserts the ORIGINAL bytes, so a wrong or
 # modified input aborts instead of producing a broken image. Our own code comes from bin/ (built from src/).
 # Build history: v2a (POLY machine) -> v2b (sequencer voice rotation) -> v3 (MIDI-track cable) ... -> v3p.
@@ -12,8 +13,9 @@ B   = 0x40000400
 SRC = sys.argv[1]
 DST = sys.argv[2]
 PAGE = sys.argv[3] if len(sys.argv) > 3 else "scope"
-assert PAGE in ("scope", "spectrum"), PAGE
-_shell = "scope" if PAGE == "scope" else "scope_spectrum"
+assert PAGE in ("scope", "spectrum", "all"), PAGE
+_shell = {"scope": "scope", "spectrum": "scope_spectrum", "all": "scope_all"}[PAGE]
+TRIG_ALL = 0x400ab072                       # all-views build: TRIG placed after the spectrum code
 d = bytearray(open(SRC, "rb").read())
 orig = bytes(d)
 def get(a, n): return bytes(orig[a-B:a-B+n])
@@ -229,7 +231,7 @@ put(DATA, bytes(16 + 512 * 4 + 36))          # + v3k: TRIGCNT[8], LASTCNT[8], HO
 assert DATA + 16 + 512 * 4 + 36 <= CAVE_END
 # v3k: audio ISR voice-start hook. At 0x40077d6c d3 = mask of voices 0..7 started in this block;
 # "clr.l 0x4199e130" -> jsr TRIG (does the same clear, then counts starts per voice; registers preserved).
-SC_TRIG = SCOPE + SYMS["TRIG"]
+SC_TRIG = TRIG_ALL if PAGE == "all" else SCOPE + SYMS["TRIG"]
 # v3n: the site above (0x40077d6c) is inside a block that only runs when 0x4199e130 != 0 -> most sequencer trigs
 # were missed. Hook the merge point 0x40077d72 instead (only branch target in 0x40077d72..79 is 0x40077d72 itself,
 # from 0x40077cf4): "move.l d3,d2; not.l d2; and.l -76(fp),d2" -> jsr TRIG; nop (TRIG re-executes them).
@@ -280,7 +282,7 @@ expect(0x401b3794, "400aaa86"); put(0x401b3794, l(0x400c5104))
 # Source src/spectrum.s (linked at 0x400aaa86 -> bin/spectrum.bin), model tests/spec_model.py, test tests/emu_spectrum.py.
 # 0x400aaa86..0x400ab132 (1708 B) = old SongEditView knob handler (primary slot 20 / +4 thunk, repointed in v3p) and
 # LED routine (slot 21 / +104 thunk, repointed in v3l); no other references (checked).
-if PAGE == "spectrum":
+if PAGE in ("spectrum", "all"):
     SPEC_BYTES = open(_os.path.join(_bin, "spectrum.bin"), "rb").read()
     expect(0x400aaa86, "4fefffe848d70c3c")
     for _a in (0x401b3794, 0x401b3798, 0x401b37ac, 0x401b380c):
@@ -291,6 +293,12 @@ if PAGE == "spectrum":
     SIN_BYTES = open(_os.path.join(_bin, "spec_sin.bin"), "rb").read()
     assert len(SIN_BYTES) == 514 and 0x400aefe8 + 514 <= CAVE_END
     put(0x400aefe8, SIN_BYTES)
+
+# ---------------- page "all": TRIG moved out of the page slot (the three-view shell needs the room) ----------------
+if PAGE == "all":
+    TRIG_BYTES = open(_os.path.join(_bin, "scope_all_trig.bin"), "rb").read()
+    assert TRIG_ALL >= 0x400aaa86 + len(SPEC_BYTES) and TRIG_ALL + len(TRIG_BYTES) <= 0x400ab132, len(TRIG_BYTES)
+    put(TRIG_ALL, TRIG_BYTES)
 
 # data words in the dead SongTempoMenuView body (SDRAM, ACR0 copyback, not write-protected)
 put(0x400b9100, bytes(8))

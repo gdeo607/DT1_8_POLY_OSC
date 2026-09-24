@@ -3,6 +3,13 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## v3r-all - 1.5d (HW: not yet)
+- All three views in one OS: the "..." key cycles **waveform -> spectrum -> X-Y -> close** (`--page all`).
+  Tuner and activity boxes in waveform and spectrum; YES fullscreen and NO close in every view; keys, knobs and
+  pattern change as before. Only the view on screen does any work (the spectrum capture/FFT stops when you leave it).
+- The trig counter (audio-interrupt hook) moves next to the spectrum code in this build to make room; the scope and
+  spectrum builds are byte-identical to before.
+
 ## v3q-spectrum - 1.5c (HW: not yet)
 - New build option: the three-dots utility page can be **Spectrum** instead of Scope (`tools/build.py --page spectrum`).
   Everything else (POLY, tuner, activity boxes, X-Y, YES/NO, keys/knobs/pattern change) is identical.

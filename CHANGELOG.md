@@ -3,6 +3,10 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## Repository renamed
+The repository is now **digi1_mods** (it was DT1_8_POLY_OSC). Old links redirect. The stand-alone
+builds are now written as `digi1_mods_<release>_<version>.syx`; their contents and SHA-256 are unchanged.
+
 ## Digi Poly 1.0f + Digi Matrix 1.0b + Digi EQ 1.0b - unit shows 2.0d (HW: not yet)
 - **The per-pattern settings survive a power cycle.** Digi Poly's voice pool, Digi Matrix's slots and
   Digi EQ's bands kept their settings in parameter slots 46..52 of each sound, which the firmware never

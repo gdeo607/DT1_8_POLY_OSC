@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the DT1_8_POLY_OSC firmware image from YOUR copy of the official OS 1.53 file.
+"""Build the digi1_mods firmware image from YOUR copy of the official OS 1.53 file.
 
     python3 tools/build.py --official <official OS 1.53 .syx> --tool <path to container tool> [--page scope|spectrum|all] [--out out/]
 
@@ -68,7 +68,7 @@ def main():
         if sha(patched) != PATCHED_S3:
             sys.exit("patched section differs from the release build (%s)" % sha(patched))
         print("patched section = release %s" % RELEASE)
-        syx = os.path.join(a.out, "DT1_8_POLY_OSC_%s_%s.syx" % (RELEASE, VERSION_TAG))
+        syx = os.path.join(a.out, "digi1_mods_%s_%s.syx" % (RELEASE, VERSION_TAG))
         run([a.tool, "-i", a.official, "-c", "3", patched, "-V", VERSION_TAG, "-o", syx])
         rep = run([a.tool, "-i", syx])
         if "checksums : ok" not in rep or VERSION_TAG not in rep:

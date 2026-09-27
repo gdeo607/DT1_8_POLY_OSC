@@ -1,4 +1,4 @@
-| Spectrum page for the three-dots utility slot (DT1_8_POLY_OSC, page "spectrum"). GNU as -mcpu=5475.
+| Spectrum page for the three-dots utility slot (digi1_mods, page "spectrum"). GNU as -mcpu=5475.
 | Linked at 0x400aaa86 (old song-edit knob handler + LED routine, 1708 B, unreachable since v3p).
 | Integer model: tests/spec_model.py (bit-exact). Tables: bin/spec_tables.inc (tools/gen_spec_tables.py).
 |  SCAP(out)  audio ISR, from the page TAP: while SREQ, append 32 frames of clamp((L+R)>>9) to the capture

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# DT1_8_POLY_OSC - patch the MAIN OS section (section 3) of the official OS 1.53 image.
+# digi1_mods - patch the MAIN OS section (section 3) of the official OS 1.53 image.
 # Usage: python3 tools/patch_section3.py <official section_3 .bin> <output .bin> [page]
 #        page = scope (default) | spectrum | all  - the view(s) on the three-dots key
 #        all = waveform -> spectrum -> X-Y -> close

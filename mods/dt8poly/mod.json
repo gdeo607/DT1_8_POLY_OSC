@@ -1,7 +1,7 @@
 {
  "id": "dt8poly",
  "version": "1.5e",
- "title": "POLY machine (DT1_8_POLY_OSC)",
+ "title": "POLY machine (digi1_mods)",
  "category": "Sound",
  "author": "gdeo607",
  "description": "Adds a POLY machine (FUNC+SRC list). Tracks set to POLY share one sound and play chords: sequencer trigs of the lowest POLY track rotate over all POLY tracks, and notes from the MIDI track on the same channel play free POLY voices (internal MIDI cable, CCs follow). Each POLY voice keeps its own SRC TUNE and LFOs. Kits saved with POLY load as ONESHOT on the stock OS.",

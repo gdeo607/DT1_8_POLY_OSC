@@ -1,4 +1,6 @@
-# DT1_8_POLY_OSC
+# digi1_mods
+
+*(formerly DT1_8_POLY_OSC)*
 
 Unofficial, community-made patch set for the 8-track MK1 sampler groovebox ("DT1"), based on **OS 1.53**.
 **POLY** (polyphony across the 8 audio tracks) is the core. The "..." (three dots) key gets a
@@ -101,9 +103,9 @@ Full controls: [docs/USAGE.md](docs/USAGE.md). Version history: [CHANGELOG.md](C
 ```sh
 # get the MIT-licensed .syx container tool by mischa85 (GitHub) and build it with `make`, then:
 python3 tools/build.py --official <official OS 1.53 .syx> --tool <path to the container tool> --page scope
-# -> out/DT1_8_POLY_OSC_v3p_1.5b.syx            SHA-256 f8cd0d721c265a07077078a5aae95908c265ce3fadd0c83cbbb377916b51b8b3
+# -> out/digi1_mods_v3p_1.5b.syx            SHA-256 f8cd0d721c265a07077078a5aae95908c265ce3fadd0c83cbbb377916b51b8b3
 python3 tools/build.py --official <official OS 1.53 .syx> --tool <path to the container tool> --page spectrum
-# -> out/DT1_8_POLY_OSC_v3q-spectrum_1.5c.syx   SHA-256 3aeb2bb8c4a79c7a807d4ee62336ba8e045078d6ae3d122d64e53a0c8851564a
+# -> out/digi1_mods_v3q-spectrum_1.5c.syx   SHA-256 3aeb2bb8c4a79c7a807d4ee62336ba8e045078d6ae3d122d64e53a0c8851564a
 ```
 
 The build refuses any input that is not the exact official OS 1.53 file and checks every patched byte.

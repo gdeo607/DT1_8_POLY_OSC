@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 tests/png/
 .DS_Store
+*.elemod

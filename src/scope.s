@@ -10,9 +10,20 @@
 |  TAP   (audio ISR, 0x4007814a): original output writer, then appends 8 x {mid, side} per block.
 |  KEY   (vtable slot 2): key 5 press: waveform -> X-Y -> close. key 6 -> original. Others -> main screen.
 
+.ifdef ELK
+| elekloader build (mods/digiutils): the page's parts are linked by the SDK, not placed at fixed addresses
+    .set TTAP,  digiutils_ttap
+    .set TUNE,  digiutils_tune
+    .set TDRAW, digiutils_tdraw
+.ifdef SPECTRUM
+    .set SCAP,  digiutils_scap
+    .set SPEC,  digiutils_spec
+.endif
+.else
     .include "tuner_syms.inc"
 .ifdef SPECTRUM
     .include "spec_syms.inc"
+.endif
 .endif
 .ifdef ALLVIEWS
     .set USEWAVE, 1
@@ -32,8 +43,13 @@
     .set MS_PTR,   0x421f9b50
     .set MS_CTL,   0x421f9b54
     .set Q_PTR,    0x4199dc44      | kit params base (machine of track t at Q+0x9e+t*0xa2)
+.ifdef ELK
+    .set VSTATE,   dt8poly_vstate  | weak: only read for POLY tracks, which exist only with the dt8poly mod
+    .set DATA,     digiutils_data     | mods/digiutils/osc_data.s
+.else
     .set VSTATE,   0x400b907c      | cable.s STATE: vnote[8] (0xff = free)
     .set DATA,     0x400ae280
+.endif
     .set IDXA,     DATA            | write index (samples)
     .set MODEA,    DATA+4          | 0 wave, 1 X-Y
     .set FULLA,    DATA+12         | 0 normal (info line + dots), 1 fullscreen (whole 128x64)
@@ -62,6 +78,10 @@
 
     .text
 | ------------------------------------------------------------------ DRAW (must be first)
+.ifdef ELK
+    .globl digiutils_draw
+digiutils_draw:
+.endif
 DRAW:
     lea -44(%sp),%sp
     movem.l %d2-%d7/%a2-%a6,(%sp)
@@ -445,6 +465,10 @@ DRAW:
     rts
 
 | ------------------------------------------------------------------ TICK (vtable slot 11)
+.ifdef ELK
+    .globl digiutils_tick
+digiutils_tick:
+.endif
 TICK:
     move.l 4(%sp),-(%sp)
     jsr OLDTICK
@@ -462,6 +486,12 @@ TAP:
     move.l 12(%sp),-(%sp)
     jsr OUTWRITE
     lea 12(%sp),%sp
+.ifdef ELK
+| elekloader build: the capture is entered here from mods/digiutils/osc_glue.s (after the output write, which
+| FAST AUDIO may route to its SRAM copy). Stack as after the stock call: out buffer at 4(sp).
+    .globl digiutils_tapc
+digiutils_tapc:
+.endif
     lea -36(%sp),%sp
     movem.l %d0-%d6/%a0-%a1,(%sp)   | preserve everything OUTWRITE returned
     move.l 40(%sp),%a0              | out buffer (32 frames x L,R)
@@ -518,8 +548,10 @@ TAP:
     rts
 
 .ifdef ALLVIEWS
+.ifndef ELK
 | all-views build: TRIG lives in its own section, placed after the spectrum code (0x400ab072)
     .section .trigtext,"ax"
+.endif
 .endif
 | ------------------------------------------------------------------ TRIG (audio ISR)
 | Replaces "move.l d3,d2; not.l d2; and.l -76(fp),d2" at 0x40077d72 (8 bytes -> jsr TRIG + nop). 0x40077d72 is the
@@ -527,6 +559,10 @@ TAP:
 | and so missed most sequencer trigs). Here d3 = final mask of voices 0..7 started in this block, on every pass.
 | Counts starts per voice, then executes the three replaced instructions (same d2 and condition codes as stock;
 | fp is the ISR frame, unchanged by jsr). d0/d1/a0 are saved; everything else untouched.
+.ifdef ELK
+    .globl digiutils_trig
+digiutils_trig:
+.endif
 TRIG:
     tst.l %d3
     beq .Ltr9
@@ -554,7 +590,9 @@ TRIG:
     rts
 
 .ifdef ALLVIEWS
+.ifndef ELK
     .text
+.endif
 .endif
 | ------------------------------------------------------------------ KEY (vtable slot 2 = consumeKeyEvent)
 | Key ids [ConfirmWindow 0x400bfc9c: 12 = YES (confirm), 13 = NO (cancel)]. The view controller offers keys
@@ -565,6 +603,10 @@ TRIG:
 |  YES/NO with flag bit 1: not consumed (main screen).
 |  id 6 (SETTINGS): as stock (close on release), see below.
 |  every other id: not consumed.
+.ifdef ELK
+    .globl digiutils_key
+digiutils_key:
+.endif
 KEY:
     move.l 8(%sp),-(%sp)
     jsr KEYID

@@ -937,3 +937,359 @@ responsive, mutes/changes work while the scope is open.
 - Cost: ~0.58 M instructions per analysis, ~11 k per frame otherwise. ColdFire 5475 has no ff1/exg (replaced).
 - tests/emu_spectrum.py: shared-shell tests of emu_scope.py on this build; capture exact through the real TAP;
   COLH/PK bit-exact vs tests/spec_model.py for 7 signals x normal/full; pixels; allocation. Mutations caught.
+
+## elekloader mods dt8poly / digiutils (version 1.5e) (2026-09-26)
+- Format 2 (linkable) mods for elekloader's core 2.0a (this unit, OS 1.53): sections `.run` (RAM image, copied by core at boot
+  to the free DDR area 0x47be0000..0x47c00000) and `.bss`. No shared hook sites of core are used; every hook is a
+  site of our own (same stock sites as the stand-alone build unless noted).
+- Sources: `src/*.s` assembled with `--defsym ELK=1` (plus SPECTRUM, ALLVIEWS for digiutils). Under ELK the fixed data
+  addresses become symbols (`digiutils_data` = old 0x400ae280 block, `digiutils_tdata` 0x400aeab4, `digiutils_tring`
+  0x400aead0, `digiutils_sreq` 0x400aeed0, `digiutils_sint` 0x400aefe8, `dt8poly_vstate` = cable STATE), TRIG stays in .text,
+  and global aliases `digiutils_*` / `dt8poly_*` mark the entry points. Without ELK every byte is as before (hashes of
+  scope / spectrum / all unchanged). mods/dt8poly/poly_ui.s holds the POLY hooks that the stand-alone script
+  embeds as hex (name table, lookup/engine/getter aliases, round-robin voice rotation, POLY row icon), as source.
+- Differences: (1) audio tap: FAST AUDIO (digihealth) owns the call 0x4007814a (render output write, routed to its
+  SRAM copy), so digiutils hooks "move.l d0,d4; jsr 0x40006e04" at 0x40078150 instead (0x40006e04 = move.l
+  0x4060f4f4,d0; rts, no arguments) and enters the unchanged capture code (`digiutils_tapc`) with the same stack (out
+  buffer at 4(sp)). (2) The raw machine getter is written anew (one virtual call, same result) instead of a copy
+  of stock code. (3) The song-mode getter patch 0x4001d8cc (14 bytes) is three sites (4 + 6 + 4 bytes).
+  (4) Song-mode code is no longer overwritten; the SongEditView vtable slots are pointed at our code (ptr sites).
+- RAM: dt8poly .run 1516 + .bss 4; digiutils .run 5152 + .bss 3404. With digihealth and digislicer: 102072 of 131072.
+- tests/elk_equiv.py: links like elekloader (link.link) and compares the disassembly of every routine and data
+  table in the RAM image with the stand-alone all build, address operands named (label+offset): 33 routines,
+  tap capture, name/icon/tuner/sine tables, 39 stock sites: PASS (with and without digihealth + digislicer).
+- tests/digiemu_scenario.py (digiemu 0.2.0, headless, UNTESTED firmware accepted): cold boot to the UI; RAM image
+  present at 0x47be0000; FAST AUDIO's SRAM output writer runs every block and our tap after it; three-dots cycle
+  waveform / YES fullscreen / spectrum / X-Y / close; FUNC+SRC list shows POLY with its icon, selecting it stores
+  machine 4; tracks 1+2 POLY, 4 trigs on track 1, PLAY: voice starts 7 / 8 on voices 1 / 2 (rotation). With a
+  test tone written into the output buffer (the emulated card has no samples): 440 Hz -> "A4 +0", spectrum peak at
+  column ~53, X-Y vertical line; 110 Hz -> "A2 +0". Same results for core + dt8poly + digiutils alone.
+
+## Digi utilities 1.6a (mod renamed dt8osc -> digiutils): 4-band master EQ (2026-09-26)
+- Placement: in the audio tap (mods/digiutils/osc_glue.s), after the render wrote the output block and before the
+  capture: digiutils_eqrun(out buffer), in place. Block = 32 frames x {L, R} int32, 24-bit right-justified
+  (digiemu frames_from_ssi: 24 of 32 bits, SSI default). The ISR saves/restores the EMAC state around itself
+  (0x4007746e .. 0x400784c6); eqrun still saves MACSR, ACC0, ACCEXT01, sets MACSR 0x20 (signed fractional,
+  truncating, no saturation) and clears ACC0/ACCEXT01 first (the first MAC of a block otherwise adds to a stale
+  accumulator: found by tests/emu_eq.py).
+- Filters: A. Simper's linear trapezoidal SVF. Per sample: v3 = v0 - ic2; v1 = a1 ic1 + a2 v3;
+  v2 = ic2 + a2 ic1 + a3 v3; ic1 = 2v1 - ic1; ic2 = 2v2 - ic2; out = v0 + 16 (c0 v0 + c1 v1 + c2 v2).
+  a1 = 1/(1 + g(g + k)), a2 = g a1, a3 = g a2 (Q31); c = (m0 - 1, m1, m2)/16 in Q31 (= the mix in Q27).
+  Bell: k = 1/(Q A), m = (1, k(A^2 - 1), 0). Low shelf: g /= sqrt(A), k = sqrt 2, m = (1, k(A - 1), A^2 - 1).
+  High shelf: g *= sqrt(A), m = (A^2, k(1 - A)A, 1 - A^2). A = 10^(dB/40). Samples x4 while filtering.
+- EMAC fractional in the emulator (and per the ColdFire EMAC description): each product kept to 8 bits below the
+  result LSB, sum truncated: r = (sum floor(x*y / 2^23)) >> 8. The model uses exactly that.
+- Coefficients (eq.c, UI task, on a knob turn): tables from tools/gen_eq_tables.py (g = tan(pi f/fs) for the 128
+  frequency steps, A, sqrt A, A^2 for -12..+12 dB in 0.5 dB, 1/Q for 16 Q steps); 64-bit products and the single
+  division (2^55/d, d in Q24) by hand in 32-bit C (no libgcc). Two coefficient sets; the UI fills the idle one and
+  switches digiutils_eqlive with one store. A band switched on starts from zero state.
+- Knobs: the SongEditView encoder listener slots (0x401b3794 primary, 0x401b37ac thunk; 0x400c5104 "not handled"
+  since v3p) -> digiutils_enc(this, ev): ev+12 knob 1..8 = A..H, ev+16 counts (4 a notch, digiemu), steps = counts/4
+  with the remainder kept per knob (digislicer does the same); returns 1 (taken) only in the EQ view.
+- View (MODE 3): SPEC draws the live spectrum, then the curve (approximate shapes: bell g w^2/(w^2 + x^2) with the
+  half-gain width from Q, shelves a 0.5-octave soft step), inverted over the bars; 0 dB dotted at row 30,
+  +-12 dB = +-20 rows; bottom line = the last value changed and the page. KEY: X-Y -> EQ -> close; YES = page.
+- Cost (digiemu, instruction count per block): flat 12; one band ~2,800; four bands ~8,800.
+- Tests: tests/eq_model.py (fixed point vs floating-point design: worst 0.002 dB, 99 points), tests/emu_eq.py
+  (400 random knob settings: coefficients equal; 240 blocks of tones + noise: output bit-exact; registers and
+  EMAC state kept), tests/digiemu_scenario.py PLAN=eq (tone at 100 Hz: measured output vs design within 0.1 dB
+  over 14 settings incl. OUT, EQ off/on, closed view; knobs ignored with the view closed; screenshots).
+
+## Digi utilities 1.7a (2026-09-26): Song mode kept, page on a held "...", EQ indicators
+- Stock "..." handling (OS 1.53, read from code and checked in digiemu): the press opens the SONG MODE popup
+  (MainScreenView); the popup then gets the key's later events. Key event flags (+16): bit 0 down, 1 FUNC,
+  2 double press, 3 repeat, 4 up, 5 long press (sent once after ~0.5 s), 6 longer press. The popup's "..."
+  handling at 0x400aee4a: song mode on + double press -> 0x400af042 (make_shared<SongEditView> 0x40161ffe, push).
+- page.s: 0x400aee4a "lea 0x400eb218,a3" -> jsr digiutils_popkey: long press without FUNC -> mark "next view is
+  the page" and continue at 0x400af042 (a5/a4 as the stock code sets them there). 0x400af086 (after the
+  make_shared, object at -24(fp)) -> digiutils_made2: if marked, digiutils_adopt(object).
+- page.c digiutils_adopt: copies the SongEditView vtable group 0x401b3748..0x401b3810 (50 words) from the image to
+  RAM once, points slot 2 (key), 4 (draw), 11 (tick), 20 (knobs) and the +4 / +104 subobject entries at the page
+  (LEDs -> the stock empty method 0x400c96be), and sets the object's three vtable pointers (+0, +4, +104) to the
+  copy. typeinfo and every other slot stay, so the firmware still sees a SongEditView.
+- Pattern / bank pick (0x40095aec, 0x40095bf6: "movea.l -32(fp),a0; tst.l a0; beq.s") -> digiutils_patchk: the found
+  SongEditView is closed as stock unless its vtable is the page's copy (v3l made it never close).
+- Removed from the mod: songoff (setter/getter clamp), the 0x4002e914 popup -> SongEditView redirect and the
+  vtable ptr/bytes sites (all per object now). Sites: 6 (tap, trig, 2 x pattern check, popup key, adopt).
+- EQ view (eq.c): fullscreen layout, drawn by the page: header bar with the title knocked out (text then an
+  inverted fill), frame rows 22..54, 0 dB at row 38, +-12 dB = +-14 rows; x = frequency step (20 Hz .. 20 kHz);
+  spectrum as one dot per column from SPEC's column heights (COLH, SPEC still requests captures); knob cells
+  4 x 32 px on two text rows, the last changed underlined; band points "+" (edited band: 5x5 circle) with their
+  number above (or below near the top).
+- digiemu (PLAN=song, both builds): tap = stock popup; NO closes it; hold = the page; EQ view, knobs, page 2;
+  pattern change keeps the page; popup + YES = SONG MODE ON; hold with Song mode on = the page; popup EDIT and a
+  double press = the stock Song edit screen (UNTITLED, "THE SONG IS EMPTY"); 2 objects adopted in the run.
+  PLAN=eq: 14 settings within 0.10 dB; tour: POLY rotation, machine list, views as before.
+
+## Digi Poly 1.0a (mod `digipoly`, replaces dt8poly) (2026-09-26)
+Owner's design: any audio track set to POLY sequences chords from its own trigs, with the MIDI tracks' TRIG page;
+extra notes take other tracks' voices by voice stealing; a SETTINGS menu locks voices; external MIDI plays the POLY
+track polyphonically on the track's own channel. No internal MIDI cable. Addresses are OS 1.53's; all read from code
+and checked in digiemu.
+
+### Storage: audio tracks already have NOT2-NOT4
+- Pattern track struct (0x38f bytes, 16 per pattern at 0x409bac18, audio 0-7, MIDI 8-15) is the same for both
+  kinds. Per-step arrays (64 bytes each, 0xff = use the track default): +0x280 NOTE/NOT1, +0x2c0 NOT2, +0x300 NOT3,
+  +0x340 NOT4 (NOT3/NOT4 confirmed by a trig-hold lock of NOT4 landing at +0x340). Defaults +0x384 NOTE/NOT1,
+  +0x385..0x387 NOT2..NOT4 (0x40 = off, else offset + 0x40).
+
+### TRIG page: page kind 1 -> 15
+- The TRIG page of audio and MIDI tracks is one view class (vtable 0x40184004, vptr 0x40184008, built at
+  0x4002f4ba with kinds {1} from 0x40182d6c and at 0x4002f7e6 with kinds {15} from 0x40182d38). View +124/+128 =
+  vector of page kinds, +144 = page index; kind -> layout 0x400657b2 (20 x 44 bytes at 0x4197cf88; +8.. = the
+  knobs' descriptor indices): kind 1 = NOTE VEL LEN PROB FLT.T LFO.T, kind 15 = NOT1..NOT4 VEL LEN PROB LFO.T.
+  The draw 0x400368ba asks kind == 15 for the piano-roll draw, else 0x40031802.
+- Hook: vtable slot 0x40184018 (draw) -> digipoly_trigdraw: for a view first seen with kind 1 (the audio TRIG
+  view), set its kind to 15 while the active track (0x4197b6b4) is POLY (UI kit *0x4199dc44 + 0x9e + t*0xa2 == 4),
+  else 1; then the stock draw. Knobs and trig-hold locks use the same kind, so NOT1-NOT4 edit the audio track's
+  own fields (checked: knob B -> +0x385, trig hold + knob D -> +0x340+step).
+
+### Sequencer: the chord rides on the trig message
+- Builder 0x4006f4be end, 0x4006f7ea (`move.l a5,68(a2); move.l a2,d0`) -> digipoly_tag: msg+28 (unused by the
+  firmware) = 0xC4, NOT2, NOT3, NOT4 (step value, else the default) when the track's machine (builder kit arg + 0x9e
+  + t*0xa2) is POLY, else 0 (messages are recycled). The slot copy in the tick handler (0x4006ecf2) copies all 0x4c
+  bytes, and the micro-timing path uses the same builder, so every trig carries it.
+
+### Audio engine: the router
+- Render message loop (0x40077640..): per time bucket (a5: +4 time, +8 first message, +16 next bucket), messages
+  chained by +72. Types 2..5 are special; others are notes: +4 on (1) / off (2), +8 voice, +12 id (1 sequencer,
+  2 live, -1 skipped), +24 note, +36 flags (0x81 = trig, bit 16 pitch from +24, bit 18 the engine's own note-off
+  copy), +40 sound (kit + 0x20 + t*0xa2), +44 full sound lock, +68 lock block (ref counted, 0x400edfe6/0x400ee008).
+- Voice path entry 0x400777a2 (`move.l 8(a2),d2; move.l d2,d0`) -> digipoly_route (C: digipoly_route_c with the
+  message, d3 = voices started so far, a6 = the render frame). For a tagged id-1 trig of a POLY track: for each of
+  NOT2..NOT4 not off, choose a voice and insert a copy after the message: MSG_ALLOC 0x400ee036 + copy 0x400ee0a0
+  (keeps the lock block's reference count), +8 voice, +24 note, +28 0, bit 16 set. The engine then starts them in
+  the same bucket; msg+40 (the POLY sound) differs from the voice's loaded sound (0x800014f0 + 4*(0x131+v)), so
+  the engine loads the POLY sound (0x40077282) into the stolen voice; its own track's next trig brings its own back.
+- Voice choice (steal): not the POLY voice, not locked (SETTINGS), not muted (0x4199e47c word, or the render's
+  fp-80 mask, as the engine's own check at 0x400777ca), not held by a live note (0x4399db54[v] >= 2: the engine
+  would refuse a sequencer note there), not started earlier in this call (d3), no own trig later in the bucket;
+  of the rest the voice whose last start (clock stamped by the router) is oldest. None left: the note is skipped.
+- Live notes (id 2: liveNoteOn/Off 0x400d53dc/0x400d575e -> 0x40076b3c for audio tracks, msg+8 = the track): for a
+  POLY track, a note-on takes the track's voice if no live note holds it, else a stolen one (then +40 = the POLY
+  sound); the note-off is routed to the voice holding that note (table voice -> {note, POLY track}), so the stock
+  release check (0x40077c06: owner id and note match) releases it. No voice: id = -1 (skipped).
+- `dt8poly_vstate` (voice -> held live POLY note, 0xff none) keeps Digi utilities' activity boxes working.
+
+### SETTINGS > POLY
+- ev_settings row (core_additem). Draw callback: the stock checkbox (0x421f7a3c bitmaps) at x shows the chosen
+  track's lock; the digits 1-8 at x+34, locked ones inverted, a bar over the chosen one (the bitmap's y grows
+  upwards: y+7 is above the text). change(delta) moves the choice, select toggles. RAM only.
+
+### Tests
+- tests/digiemu_poly.py (digiemu, 5-mod build with digihealth, digislicer, digiutils): track 1 -> POLY, MIDI-style
+  TRIG page, knob B edits NOT2, chord +4/+7/+11, a NOT4 step lock, PLAY: every POLY trig starts NOT1 on voice 1 and
+  the extra notes on distinct other voices with track 1's sound, never a voice whose track trigs at the same time;
+  lock tracks 2 and 3 in SETTINGS: never stolen, notes skipped when no voice is left; live 3-note chord on 3 voices,
+  released by the note-offs (live notes injected through 0x40076b3c, as MIDI in does). Router cost measured there:
+  about 180 instructions per note message on average.
+
+## Digi Poly 1.0b: stolen voices follow the POLY track's knobs (2026-09-26)
+Owner report: "Level acts weird when voice stealing" -> turning a knob of the POLY track moved only NOT1.
+- Knob turns reach the engine through 0x400771e8(value, voice, slot): the 16-bit parameter block at 0x800014f2
+  (voice v slot s at word 8 + 53v + s; voice 16 = globals at word 432 + s), for the track's own voice only, then
+  "if the voice's loaded sound (0x800014f0 + 4*(0x131+v)) is not its own, forget it". Hook: the entry (8 bytes)
+  -> jmp digipoly_setparam, which does the same and writes the value to every other voice whose loaded sound is
+  that track's (kit + 0x20 + t*0xa2). The stolen tracks' own sounds are untouched: their next trig reloads them.
+- The track level is not in a voice's parameters: word t of the block is track t's level (0x40077246 writes it),
+  smoothed per render block by 0x40074b9e into 16-bit words at 0x80002760 (the mixer 0x40071c20 reads word i for
+  voice i). Hook after the smoothing, 0x40077eaa ("movea.l d0,a2; jsr 0x400ed53e") -> digipoly_lvlhook: word w
+  of a stolen voice = word of the track whose sound it plays, then the stock call. About 150 instructions a block.
+
+## Digi utilities 1.8a: the master EQ as a FUNC+LFO master page (2026-09-26)
+- The master pages are one view (vtable 0x401845d8 group, vptr 0x401845dc) with the page-kind list {11, 12, 13}
+  (COMP "Compressor", MIX "Internal Mixer", EXT "External Mixer"; kind 14 "Outbox 8 Mixer" also exists). Title
+  "%s (%d/%d)" from the kind's long name (layout +4) and the list size (0x40030930). Kind 0 ("NONE"/"None", no
+  knobs) is unused by the stock UI.
+- digiutils_mdraw (vtable slot 4, 0x401845ec) turns the list into {11, 0, 12, 13} on the first draw (a new
+  16-byte buffer from operator new; the old one is left alone: it is not from the heap that operator delete
+  checks, which halts on it), names kind 0 "EQ"/"Master EQ", and on kind 0 draws the stock frame (title bar,
+  empty knob boxes) and then the EQ page over the body.
+- Keys: vtable slot 2 (0x401845e4) -> digiutils_mkey: on kind 0, knob pushes (key ids 40..47 = A..H, flags bit 0
+  press) toggle that knob's second setting and are consumed; everything else goes to the stock 0x40038b36.
+- Knobs: not the primary vtable. Encoder events reach the view through its +4 listener subobject: vtable entry
+  0x401846bc = thunk 0x400388ee (this -= 4; bra 0x40038614). Replaced by digiutils_menc_thunk -> digiutils_menc:
+  on kind 0 knobs 1..8 set the EQ, else (and knob 9 LEVEL) the stock handler. Event: +12 knob, +16 turn, +20
+  held. The turn is 16 per notch (the firmware's own pages step once per 16; digiemu sends 4 counts a notch, x4).
+- Panel driver 0x400d3b48: turns of a knob within ~40 driver ticks of its push are dropped (debounce); the
+  emulator tests wait after a push.
+- Bands: type per band (HP, LSH, BELL, NOTCH, BP, HSH, LP), Q per band (shelves too). Mix per type (m0, m1, m2)
+  as in tests/eq_model.coef; eq_dsp.s is unchanged (out = v0 + 16*(c0 v0 + c1 v1 + c2 v2), c = mix/16, c0 = m0-1).
+  For HP/LP/BP/notch the band level L = 10^(dB/20) scales the mix (|mix| <= 4 * 3.33 < 16).
+- The drawn response: per band |H|^2 = N/D with a = m0+m2, b = m0 k + m1, w = tan(pi f/fs)/g:
+  N = (a - m0 w^2)^2 + (b w)^2, D = (1 - w^2)^2 + (k w)^2 (for w > 1 both times 1/w^4), in Q16, dB by an integer
+  log2 (LOG2Q8 table); within 0.26 dB of the exact response above -24 dB (tests/eq_model.py).
+- Tests: tests/eq_model.py (design 0.014 dB, all types), tests/emu_eq.py (knobs and pushes through the page
+  handlers on a fake view, coefficients equal the model's; 960 blocks bit-exact with every type),
+  tests/digiemu_scenario.py PLAN=eq (page order, knobs, pushes, types, measured level vs model within 0.01 dB).
+
+## Digi Poly 1.0c (2026-09-26): the voice pool per pattern, the chord on the track key, the LEV fader
+- **Where the pool setting lives.** Probed in digiemu: the pattern's track structs (0x409bac18 + t*0x38f) keep
+  their spare tail bytes across a pattern change, so those bytes are not part of the stored pattern; the *kit*
+  is (each pattern has its own kit object, 0x4199dc44, and pattern 2 showed a different pointer with our magic
+  absent while pattern 1 kept it). The kit's per-track sound block (kit + 0x20 + t*0xa2) holds the parameter
+  words the engine copies (+0x14 .. +0x7d, 53 slots) and the machine byte (+0x7e). Slots 46..52 are 0 in every
+  kit seen and the stock UI never reads or writes them. The pool flag was **slot 52** (sound + 0x7c; RAM-only - moved in 2.0d, see "Where the per-pattern settings live since 2.0d"), 0 = the
+  track lends its voice. Sounds are memcpy'd as whole 0xa2-byte blocks in a dozen places (load, copy, store), so
+  it travels with the sound and is saved with the project.
+- **The unit's own keys.** A trig key press, and a key of the FUNC+TRK keyboard, both reach
+  liveNoteOn 0x400d53dc from one place, 0x40028bae (7 arguments: track, note, vel, 0x40, x, -1, -1); the release
+  reaches liveNoteOff 0x400d575e at 0x40028c60 (track, note, 0x40). MIDI in arrives from its own dispatch, so
+  hooking those two sites separates the unit's keys from MIDI. digipoly_prevon/off make the stock call (so the
+  firmware records the played note as always) and add the chord's other notes straight to the audio live builder
+  0x40076b3c, whose source struct is 12 longs: [0] track, [1] note, [2] velocity, [3] 1 on / 2 off,
+  [4] flags (0x10281 on), [5] -1, [8] 0x40. Those notes are not recorded and not sent to MIDI OUT.
+- **The track level** is a byte per track at kit + 0x10 + t (0..127) - found by turning the LEVEL knob and
+  diffing the kit. The POLY track's TRIG page (the MIDI tracks' page kind 15) leaves the left column's lower
+  cell empty, so digipoly_levdraw draws a fader there after the stock draw, from that byte.
+- **Testing** is split: tests/emu_poly.py links the mods, maps memory, stubs the firmware routines our code calls
+  (an rts each, plus a bump allocator for the message pool) and calls our functions directly, checking the voice
+  choice, the settings row (including which tracks are drawn as in the pool), the chord's messages, live notes,
+  the preview, the knob and level mirroring and the fader's geometry - all in seconds. tests/digiemu_poly.py then
+  boots the firmware only for what that cannot show. The engine ramps a *playing* voice's parameter words towards
+  a new knob value, so right after a turn the sounding voices read a value between the old and the new one; the
+  strict comparison waits for the settled snapshot.
+
+## Digi Matrix 1.0a (2026-09-27): the LFO stage, and routing it across tracks
+- **The LFO stage is 0x400ed53e**, called once per audio block from 0x40077eac with the smoothed parameter
+  words in d0 (and two more arguments). It is one function with two nested loops: the outer one over the 8
+  voices, the inner one over that voice's two LFOs - **LFO2 first, then LFO1**.
+- **The smoothed parameter words.** The smoothing stage 0x40074b9e (called at 0x40077e9a, argument
+  0x800014f0) returns the block's words in d0: 8 track levels at 0x80002760, then **53 words a voice at
+  0x80002772 + 106*v**, slot s at + 2*s. (The 16-bit settings the UI writes are the other array,
+  0x80001502 + 106*v + 2*s.) The LFO stage keeps that base in a5 (+18 on entry, +106 a voice) and addresses a
+  destination as `a5 + 2*dest`, so the DEST parameter of an LFO is a plain slot number 0..52; -1 (0xFF read by
+  `mvsb`) is "no destination" and anything above 52 is rejected.
+- **An LFO's fields** are the 8 slots of its own group: LFO1 slots 1..8, LFO2 slots 9..16, in the order
+  SPD, MULT, FADE, DEST, WAVE, PHAS, MODE, DEP (measured by turning each knob of each page and diffing the
+  settings array). SPD and DEP are bipolar around 16384; the stage uses `(DEP - 16384) * 2` as the multiplier.
+- **Its result** is kept per voice in a second array of 80 bytes a voice at **0x421f3e14 + 80*v**: LFO1's
+  current value at +0x00 and LFO2's at +0x28, a signed 32-bit fraction of full scale, already faded. The stage
+  then does `macl value, depth` (EMAC in fractional mode, MACSR = 0x20, so the accumulator holds
+  `(a*b) >> 31`), adds it to the destination word and clamps to 0..32512.
+- **What the matrix does.** Two hooks around that stage, both in the render and neither shared with another
+  mod: 0x40077ea2 (`move.l 0x4020db60,-(sp)`, one of the call's argument pushes, with the words still in d0)
+  and 0x40077eb2 (`lea (16,sp),sp; clr.l d0`, right after it returns). Before the stage, a slot whose OWN is
+  off has the source LFO's DEST word set to -1 so the stock stage skips it; after the stage, each slot reads
+  its source LFO's value from 0x421f3e14 and adds `value * depth` into the destination *track's* word with the
+  same clamp, then the borrowed DEST words go back. The multiply is `(value >> 15) * (depth * 508) >> 16`,
+  which cannot overflow 32 bits for depth -64..+64 and matches the stock scaling (full depth covers the whole
+  parameter range).
+- **Storage** (up to 1.0a; moved in 2.0d, see "Where the per-pattern settings live since 2.0d"). The 8 slots live in the kit like Digi Poly's pool: slot i in track i's sound, **slot 46**
+  (sound + 0x70) the routing word - source track (bits 0-2), source LFO (bit 3), destination track (bits 4-6),
+  on (bit 7), destination slot + 1 (bits 8-14), OWN (bit 15) - and **slot 47** (sound + 0x72) the depth
+  (depth + 128; 0 means none). 0 is an empty slot, which is what every existing kit holds.
+- **The page** is drawn by an `ev_draw` handler over the composed frame (not a view of the firmware's own), with
+  `ev_key` / `ev_enc` taking every event except REC/PLAY/STOP while it is up and `ev_tick` marking the frame
+  dirty so it keeps refreshing. y grows upwards in the bitmap, so row i is drawn at 49 - 7*i.
+- **Destination names** come from a table of our own, keyed by slot: the firmware's parameter descriptors
+  (0x401aa3dc.., 0x34 bytes each: long name, group, short name) are grouped by page rather than by slot and
+  carry no usable slot index, so the names are the page and knob the parameter sits on, measured the same way
+  as the LFO fields.
+- **Cost**: about 350 instructions a block with the matrix idle (84,538 against 84,190 for the same build
+  without it, measured in digiemu), i.e. 0.4 % of a block.
+
+## Digi EQ 1.0a (2026-09-27): the output path, and why the EQ was missing from USB audio
+- **What the render does with the master.** Every block the engine leaves the master pair - 32 frames of
+  {L, R}, 32-bit samples - at **0x8000ea70**. The stage at 0x400721e6 then spreads it: it mixes it for the
+  output pairs, and at 0x4007227c copies it into the 12-channel bus at **0x80002160** (48 bytes a frame, L
+  and R first), which is what the USB audio stream is built from (0x40078160 copies it into
+  0x4399db80, 0x400edd08 reads it on the other path). Separately, 0x40071c20 at 0x4007814a writes the
+  codec's transmit buffer at **0x4ba8f080** (the SSI DMA's 512-byte double buffer, emu/ssi.py), which is the
+  analog outputs; 0x80001000 is the receive side.
+- **Why USB was unequalized.** Up to Digi utilities 1.8a the EQ ran in the audio tap at 0x40078150, on the
+  transmit buffer - after the analog conversion, and nowhere near the bus the USB stream comes from.
+  Measured by injection: writing a test signal into 0x8000ea70 at 0x400721e6 shows up in both the bus and
+  (one distribution later) the analog buffer; writing into the transmit buffer shows up in neither.
+- **Where it runs now.** Site 0x400721e6 ("move.l #0x8000ea70,d4", the first instruction of that stage), by
+  jsr: the EQ runs on the master pair in place, then the instruction it replaced. Everything downstream -
+  main outputs, headphones, USB - carries it, and the scope, spectrum and tuner, which read the transmit
+  buffer later, still show what you hear. The site sits inside the range FAST AUDIO copies into SRAM
+  (0x400716c0-0x4007629a); the copy is taken from the patched image and our target is an absolute address
+  outside that range, so it works either way (the emulator test hooks both addresses).
+- **Scale.** The master is 8 bits hotter than the words the outputs take: a value of 0x200000 put in came
+  out of the analog conversion as 0x2000 with the main volume at unity, i.e. >>8. eq_dsp.s therefore shifts
+  the block right by 8 on the way in (folded into the existing x4 working range: asr 6 instead of asl 2) and
+  left by 8 after the clamp on the way out. The arithmetic between them, and the model it is checked
+  against, are unchanged.
+- **Storage** (1.0a; moved in 2.0d, see "Where the per-pattern settings live since 2.0d"). The four bands live in the kit, like Digi Poly's pool and Digi Matrix's slots: band b in
+  track b's sound, slot 48 (sound + 0x74) = frequency (bits 0-6), level (bits 7-12) and bit 15 as "this kit
+  has EQ settings", slot 49 (+ 0x76) = type (bits 0-2), Q (bits 3-6) and, in band 1's word, bit 7 for the
+  global override. An ev_tick handler notices the UI kit pointer changing (a new pattern) and loads or, when
+  the override is on, writes.
+- **SETTINGS > GLOBAL FX/MIX.** That screen is a Menu of MenuItems like the SETTINGS list, built by
+  0x4004468e (it creates the four std::function objects, calls MenuItem's constructor at 0x400c423c and the
+  menu's addItem). Its tail at **0x40044acc** ("movea.l (a4),a0; pea 2.w", with a4 the menu and d7 the
+  selection about to be restored) has the same shape as the SETTINGS site core hooks, so a jsr there can add
+  a row with core_additem and then carry on at 0x40044ad2. The view itself is reached from the SETTINGS row
+  whose select is 0x40058322.
+
+## Digi Poly 1.0d (2026-09-27): recording notes, and the TRIG page's LEVEL knob
+- **Where a live note is recorded.** liveNoteOn is 0x400d53dc. Its record block is at 0x400d554a and is
+  guarded only by `0x4020c29c` being 0..63 - that global is the sequencer's record step, and the firmware
+  leaves it at -1 whenever it is not recording, so "in range" is exactly "this note is being recorded".
+  Inside the block 0x4007851a/0x40078528/0x4007853a answer "audio track" / "MIDI track" / "track 16", one
+  of two objects is allocated accordingly, and 0x4006f46e writes the trig. For an audio track the step's
+  NOT1..NOT4 (track data + 0x280 / 0x2c0 / 0x300 / 0x340, one byte a step) are set to 0xFF, "no value" -
+  which is why a POLY track recorded trigs with no notes.
+- **The hook** is at **0x400d55c6** ("lea (24,sp),sp; adda.l a5,a2"), immediately after that write, where
+  a2 + a5 is the track's own pattern block, d2 the track and d3 the note. poly.c gathers the chord for the
+  current step and rewrites NOT1..NOT4 on every note, so it does not matter that the firmware clears them
+  again for each note of the chord. NOT1 is the lowest note; NOT2..NOT4 are offsets + 0x40 (0x40 = none),
+  the same encoding the trig builder reads.
+- **The TRIG view's knob listener.** The view's vtable group starts at 0x40184000 (primary vtable
+  0x40184004, draw at 0x40184018). Its knob listener is in the +4 subobject's vtable at **0x401840e8**,
+  whose stock entry 0x40032d8c is a thunk ("subq.l #4,(4,sp); bra 0x40032a78") - a hard branch, so
+  replacing the primary vtable's copy of 0x40032a78 at 0x4018404c does nothing for events that come that
+  way. Both are replaced now. The handler asks the view, through vtable slot +156, which parameter a knob
+  is on the current page and indexes the parameter descriptors at 0x401a9d9c; on page kind 15 (the MIDI
+  page) LEVEL has no answer, so putting the kind back to 1 around the stock call is enough.
+- **The stock LEV fader**, measured off the audio TRIG page (screen rows, row 0 at the top): frame x 4..10,
+  y 40..56; the filled part x 6..8 growing up from y 54, 13 rows at level 127 and 10 at 100 (so
+  `h = level * 13 / 127`); scale marks at x 0..1 and x 13..14 on rows 40, 44, 48, 52 and 56; the label
+  under it at y 59..63, "LEV" normally and the value while the knob is being turned. In bitmap coordinates
+  (y grows upwards) that is a frame (4, 7)-(10, 23), the fill from y 9, and marks every four rows from 7.
+
+## What the +Drive actually stores of a kit (2026-09-27)
+- Measured, not guessed: a different value (0x7A00 | slot) was written into all 53 parameter slots of one
+  track's sound, the project was saved through SETTINGS > PROJECT > SAVE PROJECT AS, and the +Drive image
+  was searched for each value. **Slots 0..45 come back out of the image; slots 46..52 never do.** (Slots 4
+  and 12, the two LFO DEST slots, do not appear either - they are read as a byte, `mvsb` at the word's
+  high byte, and are stored in some other shape.)
+- So the sound record the firmware writes is 46 slots long, and the spare slots 46..52 that Digi Poly's
+  voice pool (52), Digi Matrix's routings (46, 47) and Digi EQ's bands (48, 49) use exist only in RAM.
+  They behave correctly per pattern while the unit is on - each pattern's kit keeps its own, checked
+  across pattern changes - and are lost when it is switched off.
+- The +Drive is not written on a pattern change or on an ordinary edit: in the emulator the image stayed
+  byte-identical through knob turns and pattern changes, and only SAVE PROJECT AS wrote to it. There is
+  also no plain "SAVE PROJECT" in the PROJECT menu (LOAD PROJECT, SAVE PROJECT AS, MANAGE PROJECTS), which
+  fits the unit saving the active project itself.
+- Where saved storage could come from, still to be tried: the kit's non-sound area (kit + 0x530 .. 0x91E,
+  the FX and mixer parameters, which are saved) may hold words no page writes; the pattern's own track
+  blocks are 911 bytes with no obvious spare; and bit 15 of every saved parameter word is free of the
+  0..32512 range the parameters use, but the engine reads those words as signed, so it would have to be
+  masked everywhere it is read.
+
+## Where the per-pattern settings live since 2.0d (2026-09-27)
+- The sound (de)serialisers: save 0x4007a5a0(storage, runtime, ctx), load 0x4007a236(runtime, storage).
+  Storage record: +0 0xBEEFBACE, +4 version 3, **+8 = runtime +0x00 (a long, copied both ways as is)**,
+  +0x0c..0x1b the name (runtime +4..0x13), +0x1c..0x7b 48 parameter words of which 46 are used: save
+  table 0x401ac1d4 (runtime slot i -> storage word tbl[i]), load table 0x401ac28c (storage word i ->
+  runtime slot tbl[i]); storage words 46 and 47 are never written. **Runtime slot 0 is storage word 0.**
+  +0x7c..0x7e machine and two more bytes, +0x84.. the sample reference (runtime +0x92..0xa1, 16 bytes,
+  copied by 0x400797ac / 0x40079dbc), +0x94.. another 12-byte field (runtime +0x86), +0x9c 0xBACEF00C.
+- Load clears first: `memset(runtime + 0x14, 0, 0x6a)` - all 53 slots, the RAM-only 46..52 included - then
+  fills 46 of them. So any sound or kit load zeroes slots 46..52; the mods use that as their load signal.
+- With the sample slot (slot 20, runtime +0x3c) at 0 the sample reference is set from a template of
+  0xFF bytes (0x40202434) instead of being copied - the reason the reference's last four bytes, tried
+  first, do not survive a load on a track without a sample. Changing a track's sample rewrites the whole
+  reference too. The low byte of each track-level word (kit +0x11, +0x13, ...), also tried first, is saved
+  but cleared by the LEVEL knob, which writes the whole word (level << 8).
+- The kit's area after the sounds: +0x530..0x551 is not saved at all (RAM-only, zero in every kit);
+  +0x552..0x59f is saved and holds the delay, reverb, compressor and mixer parameters; +0x596 onwards
+  repeats every 0x70 bytes, eight blocks - the MIDI tracks' settings. No free saved room there.
+- The six bytes used: runtime +0x00..0x03 and slot 0 (+0x14..0x15) of each sound. Zero in all 1024
+  version-3 sound records on the +Drive image (kits and the sound pool); round trip through SAVE PROJECT AS
+  / LOAD PROJECT measured; unchanged by the LEVEL knob, SAMP changes (including OFF) and every knob of the
+  SRC, FLTR, AMP and LFO pages. Byte map and the load handling: src/kitstore.h.
+

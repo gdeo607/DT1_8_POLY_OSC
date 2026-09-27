@@ -14,6 +14,10 @@
     .set OUTLEN,    0x421b5a21
 
     .text
+.ifdef ELK
+    .globl dt8poly_cc
+dt8poly_cc:
+.endif
 CCHOOK:
     lea -60(%sp),%sp
     movem.l %d0-%d7/%a0-%a6,(%sp)

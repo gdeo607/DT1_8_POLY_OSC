@@ -17,6 +17,10 @@
     .set SLOT_HI,  0x11
 
     .text
+.ifdef ELK
+    .globl dt8poly_lock
+dt8poly_lock:
+.endif
 POST:
     move.l 8(%sp),-(%sp)            | src (ptr+0x14)
     move.l 8(%sp),-(%sp)            | voice

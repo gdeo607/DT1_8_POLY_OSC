@@ -1,0 +1,43 @@
+{
+ "id": "digimatrix",
+ "version": "1.0b",
+ "title": "Digi Matrix",
+ "category": "Sound",
+ "author": "gdeo607",
+ "description": "A modulation matrix: any track's LFO can modulate any parameter of any track. SETTINGS > MOD MATRIX opens a page with 8 routing slots; each one picks a source (a track and one of its two LFOs), a destination (a track and one of its sound parameters), its own depth (-64..+64, independent of the source LFO's own DEP) and whether that LFO still modulates its own track as well. UP/DOWN choose a slot, YES turns it on and off, NO leaves, and the knobs edit the slot under the cursor: A source track, B source LFO, C destination track, D destination parameter, E depth, F own track on/off. The matrix is kept in the kit (two unused parameter slots of each track's sound), so every pattern has its own and it is saved with the project.",
+ "sources": [
+  "matrix_glue.s",
+  "matrix.c"
+ ],
+ "sites": [
+  {
+   "addr": "0x40077ea2",
+   "stock": "2f394020db60",
+   "op": "jsr",
+   "target": "digimatrix_prehook"
+  },
+  {
+   "addr": "0x40077eb2",
+   "stock": "4fef00104280",
+   "op": "jsr",
+   "target": "digimatrix_posthook"
+  }
+ ],
+ "subscribe": [
+  {"event": "ev_settings", "fn": "digimatrix_settings", "order": 40},
+  {"event": "ev_draw", "fn": "digimatrix_draw", "order": 40},
+  {"event": "ev_tick", "fn": "digimatrix_tick", "order": 40},
+  {"event": "ev_key", "fn": "digimatrix_key", "order": 40},
+  {"event": "ev_enc", "fn": "digimatrix_enc", "order": 40}
+ ],
+ "requires": [
+  "core"
+ ],
+ "resources": {
+  "names": [
+   "settings:MOD MATRIX",
+   "sound:slot 46 (matrix routing)",
+   "sound:slot 47 (matrix depth)"
+  ]
+ }
+}

@@ -9,16 +9,30 @@
 
     .set NEWOP,   0x400d4180
     .set VLINE,   0x400c1040
+.ifdef ELK
+| elekloader build (mods/digiutils): data in mods/digiutils/osc_data.s, same layout
+    .set TRING,   digiutils_tring
+    .set TIDX,    digiutils_tdata
+    .set FULLA,   digiutils_data+12
+    .set PYMAX,   digiutils_data+0x828
+    .set SREQ,    digiutils_sreq
+    .set SINT,    digiutils_sint
+.else
     .set TRING,   0x400aead0        | tuner 3 kHz ring, 512 x int16
     .set TIDX,    0x400aeab4
     .set FULLA,   0x400ae28c
     .set PYMAX,   0x400aeaa8
     .set SREQ,    0x400aeed0        | spectrum data (reclaimed song-popup space, after the tuner ring)
+.endif
     .set SRDY,    SREQ+4
     .set SCNT,    SREQ+8
     .set SPTR,    SREQ+12           | capture buffer: 1024 x int16
     .set SWORK,   SREQ+16           | FFT: re[1024] int16, then im[1024] int16
+.ifdef ELK
+    .set COLH,    digiutils_sreq+0x18
+.else
     .set COLH,    0x400aeee8        | 128 x byte, 0..63
+.endif
     .set PK,      COLH+128
     .set NCOL,    128
     .set L0,      48
@@ -27,6 +41,10 @@
 
     .text
 | ------------------------------------------------------------------ SCAP (ISR)
+.ifdef ELK
+    .globl digiutils_scap
+digiutils_scap:
+.endif
 SCAP:
     tst.l SREQ
     beq .Lsc9
@@ -70,6 +88,10 @@ SCAP:
     rts
 
 | ------------------------------------------------------------------ SPEC(bmp) (UI)
+.ifdef ELK
+    .globl digiutils_spec
+digiutils_spec:
+.endif
 SPEC:
     lea -44(%sp),%sp
     movem.l %d2-%d7/%a2-%a6,(%sp)

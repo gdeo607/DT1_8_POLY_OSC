@@ -3,6 +3,10 @@
 | PatternAndBankSelectView sets 0/2, SongModePopup set 1).
 | FIX: d1 -> clamp to 0..2, and 1 -> 0. Only d1 and flags change. Assemble: m68k-linux-gnu-as -mcpu=5475
     .text
+.ifdef ELK
+    .globl digiutils_songfix
+digiutils_songfix:
+.endif
 FIX:
     tst.l %d1
     bpl 1f

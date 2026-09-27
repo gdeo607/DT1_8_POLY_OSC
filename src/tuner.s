@@ -9,15 +9,25 @@
 |  TDRAW (UI, DRAW(bmp)): clears x 0..31, rows 0..6 (= lower left on the physical screen) and prints
 |         "A#4 +12" / "--" with the stock 5-px font 0x40200b0c via 0x400c257c.
 
+.ifdef ELK
+    .set RING,     digiutils_data+16  | elekloader build: mods/digiutils/osc_data.s
+    .set IDXA,     digiutils_data
+    .set TDATA,    digiutils_tdata
+.else
     .set RING,     0x400ae290      | scope ring: 512 x {int16 mid, int16 side}
     .set IDXA,     0x400ae280
     .set TDATA,    0x400aeab4      | after the scope data (PNAMP ends at 0x400aeab4)
+.endif
     .set TIDX,     TDATA           | 3 kHz ring write index
     .set TNOTE,    TDATA+4         | MIDI note or -1
     .set TCENT,    TDATA+8
     .set TCNT,     TDATA+12        | TUNE call counter
     .set TBUF,     TDATA+16        | work buffer (heap, 1024 B, allocated once)
+.ifdef ELK
+    .set TRING,    digiutils_tring
+.else
     .set TRING,    0x400aead0      | 512 x int16 (3 kHz)
+.endif
     .set RN,       512
     .set W,        256
     .set NEWOP,    0x400d4180      | operator new(size)
@@ -29,6 +39,10 @@
 
     .text
 | ------------------------------------------------------------------ TTAP (ISR; all registers preserved)
+.ifdef ELK
+    .globl digiutils_ttap
+digiutils_ttap:
+.endif
 TTAP:
     lea -16(%sp),%sp
     movem.l %d0-%d2/%a0,(%sp)
@@ -65,6 +79,10 @@ TTAP:
     rts
 
 | ------------------------------------------------------------------ TUNE (UI; all registers preserved)
+.ifdef ELK
+    .globl digiutils_tune
+digiutils_tune:
+.endif
 TUNE:
     lea -44(%sp),%sp
     movem.l %d2-%d7/%a2-%a6,(%sp)
@@ -417,6 +435,10 @@ TUNE:
     rts
 
 | ------------------------------------------------------------------ TDRAW(bmp)  (UI)
+.ifdef ELK
+    .globl digiutils_tdraw
+digiutils_tdraw:
+.endif
 TDRAW:
     lea -12(%sp),%sp
     movem.l %d2-%d3/%a2,(%sp)

@@ -8,6 +8,8 @@
 
 ## Get the image
 - Build it: `python3 tools/build.py --official <official OS 1.53 .syx> --tool <container tool>` (see README), or
+- build the elekloader mods (`python3 tools/build_elemods.py ...`, see README) and make the image in elekloader,
+  together with any other mods you use. It is flashed and reverted exactly the same way.
 
 ## Flash
 1. Connect the unit by USB, open the transfer app, drop the `.syx` onto it, confirm with YES on the unit.

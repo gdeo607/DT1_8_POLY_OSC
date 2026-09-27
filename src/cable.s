@@ -18,6 +18,10 @@
     .set OUTLEN,    0x421b5620
 
     .text
+.ifdef ELK
+    .globl dt8poly_cable
+dt8poly_cable:
+.endif
 CABLE:
     lea -60(%sp),%sp
     movem.l %d0-%d7/%a0-%a6,(%sp)
@@ -193,6 +197,10 @@ CABLE:
     rts
 
     .balign 4
+.ifdef ELK
+    .globl dt8poly_vstate
+dt8poly_vstate:
+.endif
 STATE:
     .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff   | vnote
     .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff   | vch

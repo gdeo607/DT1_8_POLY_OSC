@@ -1,0 +1,71 @@
+{
+ "id": "digiutils",
+ "version": "1.9a",
+ "title": "Digi utilities",
+ "category": "Utilities",
+ "author": "gdeo607",
+ "description": "Digi utilities: hold the \"...\" key to open a live utility page over the main screen: waveform, spectrum analyser, stereo X-Y, then closes; tuner and activity dots for all 8 tracks. YES: fullscreen, NO closes; the knobs keep editing the sound underneath. Song mode works as stock (tap \"...\"). The master EQ has moved to its own mod, Digi EQ.",
+ "sources": [
+  "scope.s",
+  "tuner.s",
+  "spectrum.s",
+  "osc_data.s",
+  "osc_glue.s",
+  "page.s",
+  "page.c"
+ ],
+ "defsym": {
+  "ELK": 1,
+  "SPECTRUM": 1,
+  "ALLVIEWS": 1
+ },
+ "sites": [
+  {
+   "addr": "0x40078150",
+   "stock": "28004eb940006e04",
+   "op": "jsr",
+   "target": "digiutils_tap"
+  },
+  {
+   "addr": "0x40077d72",
+   "stock": "24034682c4aeffb4",
+   "op": "jsr",
+   "target": "digiutils_trig"
+  },
+  {
+   "addr": "0x40095aec",
+   "stock": "206effe04a88670c",
+   "op": "jsr",
+   "target": "digiutils_patchk"
+  },
+  {
+   "addr": "0x40095bf6",
+   "stock": "206effe04a88670c",
+   "op": "jsr",
+   "target": "digiutils_patchk"
+  },
+  {
+   "addr": "0x400aee4a",
+   "stock": "47f9400eb218",
+   "op": "jsr",
+   "target": "digiutils_popkey"
+  },
+  {
+   "addr": "0x400af086",
+   "stock": "42a7206effec",
+   "op": "jsr",
+   "target": "digiutils_made2"
+  }
+ ],
+ "weak": [
+  "dt8poly_vstate"
+ ],
+ "requires": [
+  "core"
+ ],
+ "resources": {
+  "names": [
+   "ui:hold three dots"
+  ]
+ }
+}

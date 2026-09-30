@@ -15,7 +15,7 @@ the machine's knob names), knob turns; RECORD, trigs on steps 1, 5, 9 and 13 of 
   1. the machine list has the five machines and the track took the one asked for (screenshots);
   2. the SRC page's knobs B..H have the machine's defaults, and a turned knob moves over 0..127;
   3. voice 0 was started once per trig;
-  4. every block voice 0 hands to the filter stage (0x8000eb70, read right after digimono_rblock) equals
+  4. every block voice 0 hands to the filter stage (0x80001a18, read right after digimono_rblock) equals
      the engine's own block, replayed on this PC from the same starts, notes and parameter words (Q31 =
      sample << 16), from the engine state the voice had before its first start; a block of a voice not
      playing (gain 0, no start) is silence and leaves the engine as it was: the render hook, the note and
@@ -45,6 +45,7 @@ _L = _link.link([_em.load_any(p) for p in a.mods], _st.section(_d.main_section))
 MAP = _L.map
 RUN0, RUN1 = _L.layout["ddr"]                      # the mods' code and data in RAM
 VOICES = MAP["digimono:voices"]                    # struct digimono_voice voices[8]; voice 0's engine state first
+TRACK_MACH = MAP["core_track_machine"]             # core 2.1: the machine each voice plays (ours render as ONESHOT)
 
 sys.path.insert(0, HERE)
 import numpy as np
@@ -84,7 +85,7 @@ from unicorn.m68k_const import UC_M68K_REG_A7
 import emu.gui as G
 
 SNAP = [os.path.join(dp, f) for dp, _, fs in os.walk(FW + "/snapshots") for f in fs if f == "gui.snap"][0]
-AFTER = 0x40076074                                  # in the voice loop, right after digimono_rblock returns
+AFTER = 0x40077fc0                                  # right after digimono_rblock returns (voice 0's block: 0x80001a18)
 MASTER = 0x400721e6                                 # the master pair at 0x8000ea70 (digieq's site)
 FAIL = []
 
@@ -149,9 +150,6 @@ knobs = {}
 def after(u, ad, s, d):
     if not st["rec"]:
         return
-    sp = u.reg_read(UC_M68K_REG_A7)
-    if struct.unpack(">I", u.mem_read(sp + 60, 4))[0] != 0:
-        return
     sb = struct.unpack(">I", u.mem_read(0x80001228, 4))[0] & 1
     if sb and st["init"] is None:
         st["init"] = st["state"]                    # the engine's state before this block: the last one's after
@@ -159,8 +157,8 @@ def after(u, ad, s, d):
     blocks.append((sb,
                    struct.unpack(">i", u.mem_read(0x80001f28, 4))[0],
                    struct.unpack(">8h", u.mem_read(0x80002772 + 34, 16)),
-                   struct.unpack(">32i", u.mem_read(0x8000eb70, 128)),
-                   u.mem_read(0x800018bc, 1)[0],
+                   struct.unpack(">32i", u.mem_read(0x80001a18, 128)),
+                   u.mem_read(TRACK_MACH, 1)[0],
                    struct.unpack(">i", u.mem_read(0x8000edc4 + 16, 4))[0]))
 
 

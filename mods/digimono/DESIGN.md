@@ -1,7 +1,7 @@
 # Digi Mono: Monomachine-style synth machines for the Digitakt mk1
 
 Status: **built, checked in emulation (digiemu, the real OS 1.53 firmware); not yet run on a unit.**
-An elekloader mod (`digimono`, 0.3) that needs **core 2.1**.
+An elekloader mod (`digimono`, 0.5) that needs **core 2.1**.
 
 ## What it is
 
@@ -154,6 +154,26 @@ a unit** with digihealth's SYSTEM INFO. Eight heavy ones would overload it. Ways
   render;
 - **skipping silent voices:** not rendering a voice whose amp envelope has closed (the envelope is applied
   after the filter stage and has not been located yet).
+
+## The Digitakt's pages on a Digi Mono track (0.5, tests/digiemu_mono_fx.py)
+
+0.3 wrote the engine's block right after the resampler (0x4007606e). Measured at the codec output
+in digiemu, that version ignored the AMP envelope and VOL. 0.5 renders the machines as ONESHOT, picks
+Digi Mono voices by core's `core_track_machine`, and writes into `0x80001a18 + 128 v` after the voice
+loop (0x40077fba), which is also where digisophie injects. The stages after that point work on the
+block in place: 0x40072478, 0x40073280, 0x40073100, 0x40072300, then the mixer.
+
+What works on a Digi Mono track in 0.5, measured on the firmware's own codec output:
+- **AMP:** the envelope (HOLD and DEC down: notes sound 28 % of the time instead of 75 %) and PAN.
+- **FLTR:** RESO, and FREQ, which darkens the voice.
+- **LFO:** an LFO on a Digi Mono knob (PULSE PW) swings the pulse width 0.41..0.81.
+- **VOL:** silences most of the voice.
+
+**Open issue.** Part of the voice reaches the output unaffected by FREQ, VOL and the sends. Every stage
+between the hook and the mixer processes the buffer in place, and the stock firmware makes no sound in
+the same sequence, so this part comes from Digi Mono through a route not yet identified. Until it is
+found, the FLTR and VOL checks of tests/digiemu_mono_fx.py fail, and a Digi Mono track can sound
+brighter and louder than its FREQ and VOL settings say.
 
 ## Known limits
 

@@ -1,19 +1,19 @@
 /* Digi Mono: synth machines for the audio tracks (DESIGN.md). The render side.
  *
- * digimono_block(v) runs in the render's voice loop, once a block for each voice, right after the voice's
- * sample has been resampled into 32 Q31 samples at 0x8000eb70 and before the filter stage reads them. For a
- * voice playing one of our machines (render machine byte 6..10; the window was empty, so the block is
- * silence) it writes the engine's block there; the voice's filter, amp envelope, LFOs, sends and level
- * follow as for a sample. Firmware addresses are OS 1.53's; how each was found: docs/TECHNICAL_NOTES.md.
+ * digimono_blocks() runs once a render block, after the voice loop has left each voice's 32 Q31 samples at
+ * 0x80001a18 + 128 v and before the filter, amp envelope and mixer stages work on them. For every voice
+ * playing one of our machines (core_track_machine 6..10; they render as ONESHOT) it writes the engine's
+ * block there, so the voice's filter, amp envelope, VOL, LFOs, sends and level follow as for a sample. Firmware addresses are OS 1.53's; how each was found: docs/TECHNICAL_NOTES.md.
  */
 #include "mono.h"
 
 #define MACH_FIRST   6                       /* digimono_m6..m10 in glue.s: SIN NOIS SAW PULS ENS */
-#define VOICE_MACH   ((volatile const uint8_t *)0x800018bc)   /* render machine byte per voice */
+extern volatile uint8_t core_track_machine[8];                  /* core 2.1: the machine each voice plays */
+#define VOICE_MACH   core_track_machine
 #define VOICE_START  (*(volatile const uint32_t *)0x80001228) /* bit v: voice v (re)started this block */
 #define VOICE_NOTE   ((volatile const int32_t *)0x80001f28)   /* per voice: MIDI note << 16 */
 #define VOICE_WORDS  0x80002772                /* smoothed parameter words, 106 bytes a voice */
-#define BLOCK        ((int32_t *)0x8000eb70)   /* the voice's 32 samples, Q31 */
+#define BLOCK(v)     ((int32_t *)(0x80001a18 + 128 * (v)))   /* voice v's 32 samples, Q31 */
 #define VOICE_GAIN(v) (*(volatile const int32_t *)(0x8000edc4 + 94 * (v) + 16))   /* 0: not playing */
 
 #define SLOT_TUNE    17                        /* SRC knob A */
@@ -57,7 +57,7 @@ static void params(int v, int model, uint8_t *p)
     }
 }
 
-void digimono_block(int v)
+static void digimono_block(int v)
 {
     struct digimono_voice *d;
     int model, i;
@@ -78,13 +78,20 @@ void digimono_block(int v)
     if ((VOICE_START >> v) & 1)
         mono_trig(&d->mv, model);
     else if (VOICE_GAIN(v) == 0)
-        return;                             /* not started, or stopped: the empty window is silence already */
+        return;                             /* not started, or stopped: the stock block is silence already */
     /* the pitch as the render computes a sample's: the note plus TUNE (after the LFOs), in Q16 semitones */
     pitch = VOICE_NOTE[v] + ((int32_t)(word(v, SLOT_TUNE) - 16384) << 8);
     params(v, model, p);
     mono_render(&d->mv, model, p, mono_pitch_inc(pitch >> 9), out, 32);
     for (i = 0; i < 32; i++)
-        BLOCK[i] = (int32_t)out[i] << 16;
+        BLOCK(v)[i] = (int32_t)out[i] << 16;
+}
+
+void digimono_blocks(void)
+{
+    int v;
+    for (v = 0; v < 8; v++)
+        digimono_block(v);
 }
 
 /* ---- the SRC page ------------------------------------------------------------------------------- */

@@ -1,6 +1,6 @@
 {
  "id": "digimono",
- "version": "0.3",
+ "version": "0.5",
  "title": "Digi Mono",
  "category": "Sound",
  "author": "gdeo607",
@@ -15,8 +15,8 @@
  ],
  "sites": [
   {
-   "addr": "0x4007606e",
-   "stock": "4df98000eda0",
+   "addr": "0x40077fba",
+   "stock": "49f94199e444",
    "op": "jsr",
    "target": "digimono_rblock"
   },
@@ -122,7 +122,7 @@
    "machine:8",
    "machine:9",
    "machine:10",
-   "render:voice block 0x4007606e",
+   "render:voice blocks 0x40077fba",
    "param:SLICE page names, ranges and values while a Digi Mono machine is active"
   ]
  },

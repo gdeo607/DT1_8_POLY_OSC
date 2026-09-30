@@ -1,0 +1,136 @@
+{
+ "id": "digimono",
+ "version": "0.3",
+ "title": "Digi Mono",
+ "category": "Sound",
+ "author": "gdeo607",
+ "license": "GPL-2.0-or-later",
+ "description": "Synth machines for the audio tracks, after the Monomachine's GND and SWAVE machines: MONO SIN, MONO NOISE, MONO SAW (unison, two sub-oscillators), MONO PULSE (PWM, unison, sub) and MONO ENS (four oscillators at set intervals, chorus), in the FUNC+SRC machine list. They need no sample; the track's filter, amp, LFOs and effects work on them as on a sample. A clean-room engine: no Monomachine code or data. The SRC page shows each machine's own knobs (B, C, E, F, G, H); A is TUNE, D the (unused) sample slot.",
+ "device": "digitakt-mk1",
+ "os": "1.53",
+ "sources": [
+  "glue.s",
+  "digimono.c",
+  "mono.c"
+ ],
+ "sites": [
+  {
+   "addr": "0x4007606e",
+   "stock": "4df98000eda0",
+   "op": "jsr",
+   "target": "digimono_rblock"
+  },
+  {
+   "addr": "0x4000fe8a",
+   "stock": "222f00080c81000000a4",
+   "op": "jmp",
+   "target": "digimono_sname"
+  },
+  {
+   "addr": "0x4000feac",
+   "stock": "222f00080c81000000a4",
+   "op": "jmp",
+   "target": "digimono_lname"
+  },
+  {
+   "addr": "0x40078f0c",
+   "stock": "2f02202f0008",
+   "op": "jmp",
+   "target": "digimono_prange"
+  },
+  {
+   "addr": "0x400657ee",
+   "stock": "222f00040c81000000a4",
+   "op": "jmp",
+   "target": "digimono_vtext"
+  }
+ ],
+ "contribute": [
+  {
+   "to": "core_machines",
+   "order": 60,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digimono_m6",
+     0
+    ]
+   ]
+  },
+  {
+   "to": "core_machines",
+   "order": 61,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digimono_m7",
+     0
+    ]
+   ]
+  },
+  {
+   "to": "core_machines",
+   "order": 62,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digimono_m8",
+     0
+    ]
+   ]
+  },
+  {
+   "to": "core_machines",
+   "order": 63,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digimono_m9",
+     0
+    ]
+   ]
+  },
+  {
+   "to": "core_machines",
+   "order": 64,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digimono_m10",
+     0
+    ]
+   ]
+  }
+ ],
+ "requires": [
+  "core"
+ ],
+ "resources": {
+  "names": [
+   "machine:6",
+   "machine:7",
+   "machine:8",
+   "machine:9",
+   "machine:10",
+   "render:voice block 0x4007606e",
+   "param:SLICE page names, ranges and values while a Digi Mono machine is active"
+  ]
+ },
+ "subscribe": [
+  {
+   "event": "ev_tick",
+   "fn": "digimono_tick",
+   "order": 55
+  }
+ ]
+}

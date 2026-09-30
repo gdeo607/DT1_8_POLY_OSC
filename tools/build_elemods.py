@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Build the elekloader mods (mods/digipoly, mods/digiutils, mods/digimatrix, mods/digieq; mods/dt8poly on request) from this repo's sources.
+"""Build the elekloader mods (mods/digipoly, mods/digiutils, mods/digimatrix, mods/digieq, mods/digimono; mods/dt8poly on
+request) from this repo's sources.
 
     python3 tools/build_elemods.py --stock <official OS 1.53 .syx> --elekloader <path to elekloader checkout> [--out out/elk]
         [--mods digipoly digiutils digimatrix digieq dt8poly]
 
 digipoly (Digi Poly) is the POLY machine with chords and voice stealing; digimatrix (Digi Matrix) is the
-LFO modulation matrix; digieq (Digi EQ) is the master EQ; dt8poly is the earlier POLY mod
+LFO modulation matrix; digieq (Digi EQ) is the master EQ; digimono (Digi Mono) adds synth machines (it needs
+core 2.1, and does not combine with digipoly 1.0f); dt8poly is the earlier POLY mod
 (internal MIDI cable, voice rotation), superseded by digipoly and kept for tests/elk_equiv.py.
 
 Each mod folder holds its mod.json and the files only it needs; the shared sources come from src/ and
@@ -22,7 +24,7 @@ SHARED = {  # file -> folder it comes from
     "cable.s": "src", "cc.s": "src", "lock.s": "src", "scope.s": "src", "tuner.s": "src",
     "spectrum.s": "src", "songoff.s": "src", "kitstore.h": "src", "spec_tables.inc": "bin", "spec_sin.bin": "bin",
 }
-MODS = ["digipoly", "digiutils", "digimatrix", "digieq"]
+MODS = ["digipoly", "digiutils", "digimatrix", "digieq", "digimono"]
 
 
 def main():

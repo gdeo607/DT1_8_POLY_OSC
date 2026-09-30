@@ -3,12 +3,20 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
-## Digi Mono engine (not in any build yet)
-- New: `mods/digimono`, a synth engine after the Monomachine's GND-SIN, GND-NOIS, SWAVE-SAW, SWAVE-PULS and
-  SWAVE-ENS, written from scratch in 32-bit integer C for the Digitakt's ColdFire. `tests/mono_signal.py`
-  measures every machine and parameter; `tests/emu_mono.py` shows the ColdFire build equals the PC build bit
-  for bit and measures its cost (0.6k-6k instructions a voice a block). Hooking it into the render as SRC
-  machines is next: see mods/digimono/DESIGN.md.
+## Digi Mono 0.3 (HW: not yet)
+- New elekloader mod `digimono` (needs core 2.1): five SRC machines after the Monomachine's GND and SWAVE
+  machines - MONO SIN, MONO NOISE, MONO SAW, MONO PULSE and MONO ENS - played by a clean-room synth engine
+  (no Monomachine code or data) written for the Digitakt's ColdFire.
+- The engine's block replaces the voice's resampled sample in the render (0x4007606e), so the track's
+  filter, amp, LFOs, sends, p-locks, note locks and TUNE all apply. Pitch comes from the note and TUNE as
+  a sample's does.
+- The SRC page shows the machine's own knob names and 0..127 values; a switch to a Digi Mono machine sets
+  its defaults.
+- Checked in digiemu on the real OS 1.53 for all five machines: every block the voice hands on equals the
+  engine's own, bit for bit (tests/digiemu_mono.py). The engine alone: tests/mono_signal.py (what each
+  parameter does) and tests/emu_mono.py (ColdFire build = PC build).
+- Cost: 3-8 % of the render per playing Digi Mono voice. Not in one build with Digi Poly 1.0f (core 2.1's
+  machine sites).
 
 ## Repository renamed
 The repository is now **digi1_mods** (it was DT1_8_POLY_OSC). Old links redirect. The stand-alone

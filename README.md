@@ -96,6 +96,13 @@ pattern is renamed "DEMO". Only screenshots are published here - no firmware, an
 
 Full controls: [docs/USAGE.md](docs/USAGE.md). Version history: [CHANGELOG.md](CHANGELOG.md).
 
+**Digi Mono** (in progress, `mods/digimono`) - synth machines after the Monomachine's GND and SWAVE machines
+- SIN, NOIS, SAW (unison, two subs), PULS (PWM, unison, subs) and ENS (four oscillators, chorus) as sound sources
+  for the audio tracks, with the Digitakt's own filter, amp, LFOs and effects after them.
+- A clean-room engine (no Monomachine code or data), measured against what each parameter should do and
+  checked bit for bit on an emulated ColdFire. **Not hooked into the firmware yet**: the render hook is the
+  next step. Details and status: [mods/digimono/DESIGN.md](mods/digimono/DESIGN.md).
+
 ## Getting it
 
 - **Build it yourself** from your own copy of the official OS 1.53 file (recommended; identical result):

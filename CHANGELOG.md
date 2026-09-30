@@ -3,6 +3,13 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## Digi Mono engine (not in any build yet)
+- New: `mods/digimono`, a synth engine after the Monomachine's GND-SIN, GND-NOIS, SWAVE-SAW, SWAVE-PULS and
+  SWAVE-ENS, written from scratch in 32-bit integer C for the Digitakt's ColdFire. `tests/mono_signal.py`
+  measures every machine and parameter; `tests/emu_mono.py` shows the ColdFire build equals the PC build bit
+  for bit and measures its cost (0.6k-6k instructions a voice a block). Hooking it into the render as SRC
+  machines is next: see mods/digimono/DESIGN.md.
+
 ## Repository renamed
 The repository is now **digi1_mods** (it was DT1_8_POLY_OSC). Old links redirect. The stand-alone
 builds are now written as `digi1_mods_<release>_<version>.syx`; their contents and SHA-256 are unchanged.

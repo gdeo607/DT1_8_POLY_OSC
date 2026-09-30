@@ -1,7 +1,7 @@
 # Digi Mono: Monomachine-style synth machines for the Digitakt mk1
 
 Status: **built, checked in emulation (digiemu, the real OS 1.53 firmware); not yet run on a unit.**
-An elekloader mod (`digimono`, 0.5) that needs **core 2.1**.
+An elekloader mod (`digimono`, 0.6) that needs **core 2.1**. It shares a build with digisophie.
 
 ## What it is
 
@@ -15,6 +15,7 @@ after the Monomachine's GND and SWAVE machines:
 | `MONO SAW`   | SWAVE-SAW  | band-limited saw, 1-3 detuned unison saws, two sub-oscillators (square..saw) |
 | `MONO PULSE` | SWAVE-PULS | band-limited pulse with PWM, 2 detuned unison pulses, a square sub |
 | `MONO ENS`   | SWAVE-ENS  | four oscillators at set intervals, saw..pulse, with a chorus |
+| `MONO VO`    | VO-6       | a formant voice: vowel 1 gliding to vowel 2, consonants at the note's start |
 
 They are picked like any machine: FUNC+SRC, after SLICE. A Digi Mono track needs no sample. Its trigs,
 note locks, TUNE, the FLTR, AMP and LFO pages, the sends, p-locks and the track level work on it as on a
@@ -61,6 +62,7 @@ other SRC knobs carry the parameters, 0..127, under the machine's own names:
 | SAW   | UNIL | UNIW | UNIX | SUBX | SUB1 | SUB2 | |
 | PULSE | UNIL | UNIW | SUB | PW | PWAD | PWRS | SUB2 (0) |
 | ENS   | PCH2 | PCH3 | PCH4 | WAVE | CHRL | CHRW | PW (64 = square) |
+| VO    | VOC1 | VOC2 | V-SW | CONS | CLEN | CVOL | VOIC (0: fully voiced) |
 
 A switch to a Digi Mono machine sets that machine's defaults. For ENS these are the Monomachine's: PCH2-4
 at 63, the same pitch.
@@ -81,15 +83,31 @@ What each parameter does, as this engine reads the manual:
   can lose its fundamental.
 - **WAVE** (ENS) fades from saw (0) to pulse (127). **CHRL / CHRW** are the chorus level and width: a
   7 ms delay swung by up to +-2.5 ms at 0.6 Hz.
+- **VO** is a glottal source through three vowel resonators:
+  - **The source:** a band-limited saw through a one-pole low-pass; VOIC mixes in breath noise.
+  - **The vowels:** the resonators sit at the vowel's first three formants, from published averages of
+    measured male vowels (Peterson and Barney, 1952). VOC1 and VOC2 pick vowels along a continuum OO, U,
+    AW, AH, UH, AE, EH, IH, EE, ER, and their values show as those names.
+  - **The glide:** V-SW glides from VOC1 to VOC2 after the note starts, 5 ms..2 s; 0 keeps VOC1.
+  - **The consonant:** CONS picks one of 8 zones: none, S, SH, F, H, T, K, P. Each is a band of noise at
+    the note's start that decays over CLEN (2..400 ms; the plosives T, K and P at most 30-40 ms) at level
+    CVOL. The vowel fades in under it.
+  - **Checks** (tests/mono_signal.py):
+    - the formants of OO, AH and EE land within 20 % of the table: OO 327 / 916 Hz, AH 719 / 1112 Hz,
+      EE 262 / 2289 Hz;
+    - OO -> EE raises F2 over the glide;
+    - an S puts a burst 45 dB above the held vowel's above 4 kHz;
+    - the fundamental is exact;
+    - the level is about 9 dB under a plain saw.
 - **ST** (NOISE) is sample and hold: 0 = white; up = fewer new values a second, about 20 kHz down to
   65 Hz. **RED** is a one-pole low-pass (about 60 Hz at 127) with make-up gain. **STON** mixes in a sample
   and hold clocked at twice the note's pitch, which makes the noise pitched.
 
 ## How it sits in the firmware (OS 1.53; details in docs/TECHNICAL_NOTES.md)
 
-- **Machines:** five descriptors in core 2.1's `core_machines`, ids 6..10, with `params` = ONESHOT and
-  `render` = their own id. The render sees an unknown machine and gives the voice an empty window, so no
-  sample is fetched and the resampler produces silence.
+- **Machines:** six descriptors in core 2.1's `core_machines`, ids 20..25, clear of NEIGHBOR / POLY (4),
+  DIGISLICER (5) and SOPHIE (7). They have `params` = ONESHOT and `render` = ONESHOT, and digimono
+  recognises its voices through core's `core_track_machine`.
 - **Audio:** the voice loop `0x400757fe` resamples each voice's sample, 64 samples at 96 kHz. A half-band
   filter brings them to 48 kHz as 32 Q31 samples at `0x8000eb70`, and the filter stage `0x400761b8`
   reads them from there. Between the two, at `0x4007606e`, `digimono_rblock` overwrites the block of a
@@ -175,6 +193,30 @@ the same sequence, so this part comes from Digi Mono through a route not yet ide
 found, the FLTR and VOL checks of tests/digiemu_mono_fx.py fail, and a Digi Mono track can sound
 brighter and louder than its FREQ and VOL settings say.
 
+## Sharing a build with digisophie (0.6)
+
+digisophie (github.com/soejrd/digisophie, MIT) adds SOPHIE, a metallic percussion machine, on the same
+framework. 0.5 could not share a build with it: both claimed machine 7, and both patched four of the same
+places. 0.6 moves or re-routes all five clashes:
+
+| clash | 0.5 | 0.6 |
+|---|---|---|
+| machine id | 7 (MONO NOISE) | ids 20..25 |
+| render hook | 0x40077fba, the same as digisophie's | 0x40077fc2 (`pea 0x80001a18`, done in the hook), one instruction later, so both run |
+| short name | the entry 0x4000fe8a | its only caller, 0x40030daa (`keep2`), then on to 0x4000fe8a |
+| long name | the entry 0x4000feac | its only caller, 0x40032d36 |
+| value text | the entry 0x400657ee | its five callers (0x40032d16, 0x40038714, 0x40038854, 0x40039142, 0x400392ea) |
+
+The range hook stays at the entry of 0x40078f0c; digisophie and digislicer wrap its callers, so their
+wrappers reach it. Checked:
+
+- **elekloader:** `elekloader.patch --check` accepts core + digimono + digisophie, and with digiutils,
+  digimatrix and digieq added; core + digimono + digislicer also combine. digisophie and digislicer do
+  not combine with each other: they wrap the same two range callers.
+- **digiemu, the combined build:** MONO SAW and MONO VO pass tests/digiemu_mono.py bit for bit (with
+  `--menu-before 1`, as SOPHIE is listed first), SOPHIE's own SRC page shows its knobs, and a SOPHIE
+  track sounds.
+
 ## Known limits
 
 - **Not run on a unit.** Only emulation so far (digiemu).
@@ -192,6 +234,7 @@ brighter and louder than its FREQ and VOL settings say.
 | file | what |
 |---|---|
 | `mods/digimono/mod.json`, `glue.s` | the elekloader mod: machines, the render hook, the SRC page hooks |
+| `tests/digiemu_mono_fx.py` | the FLTR, AMP and LFO pages on a Digi Mono track, in digiemu |
 | `mods/digimono/digimono.c` | the render side, the SRC page's names, ranges and values, defaults on a switch |
 | `mods/digimono/mono.h`, `mono.c` | the engine |
 | `mods/digimono/mono_tables.h` | generated by `tools/gen_mono_tables.py` (`--check` verifies it is current) |

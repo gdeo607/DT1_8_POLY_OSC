@@ -2,12 +2,12 @@
  *
  * digimono_blocks() runs once a render block, after the voice loop has left each voice's 32 Q31 samples at
  * 0x80001a18 + 128 v and before the filter, amp envelope and mixer stages work on them. For every voice
- * playing one of our machines (core_track_machine 6..10; they render as ONESHOT) it writes the engine's
+ * playing one of our machines (core_track_machine 20..25; they render as ONESHOT) it writes the engine's
  * block there, so the voice's filter, amp envelope, VOL, LFOs, sends and level follow as for a sample. Firmware addresses are OS 1.53's; how each was found: docs/TECHNICAL_NOTES.md.
  */
 #include "mono.h"
 
-#define MACH_FIRST   6                       /* digimono_m6..m10 in glue.s: SIN NOIS SAW PULS ENS */
+#define MACH_FIRST   20                      /* digimono_m20..m25 in glue.s: SIN NOIS SAW PULS ENS VO */
 extern volatile uint8_t core_track_machine[8];                  /* core 2.1: the machine each voice plays */
 #define VOICE_MACH   core_track_machine
 #define VOICE_START  (*(volatile const uint32_t *)0x80001228) /* bit v: voice v (re)started this block */
@@ -53,6 +53,9 @@ static void params(int v, int model, uint8_t *p)
         break;
     case MONO_ENS:                              /* PCH2 PCH3 PCH4 WAVE (PW) CHRL CHRW */
         p[0] = k[0]; p[1] = k[1]; p[2] = k[2]; p[3] = k[3]; p[4] = 64; p[5] = k[4]; p[6] = k[5];
+        break;
+    case MONO_VO:                               /* VOC1 VOC2 V-SW (VOIC) CONS CLEN CVOL */
+        p[0] = k[0]; p[1] = k[1]; p[2] = k[2]; p[3] = 0; p[4] = k[3]; p[5] = k[4]; p[6] = k[5];
         break;
     }
 }
@@ -111,6 +114,7 @@ static const char *const sname[MONO_MACHINES][6] = {
     {"UNIL", "UNIW", "UNIX", "SUBX", "SUB1", "SUB2"},
     {"UNIL", "UNIW", "SUB",  "PW",   "PWAD", "PWRS"},
     {"PCH2", "PCH3", "PCH4", "WAVE", "CHRL", "CHRW"},
+    {"VOC1", "VOC2", "V-SW", "CONS", "CLEN", "CVOL"},
 };
 static const char *const lname[MONO_MACHINES][6] = {
     {"-", "-", "-", "-", "-", "-"},
@@ -118,6 +122,7 @@ static const char *const lname[MONO_MACHINES][6] = {
     {"Unison Level", "Unison Width", "Unison Voices", "Sub Shape", "Sub 1 Oct", "Sub 2 Oct"},
     {"Unison Level", "Unison Width", "Sub 1 Oct", "Pulse Width", "PWM Depth", "PWM Rate"},
     {"Pitch 2", "Pitch 3", "Pitch 4", "Saw-Pulse", "Chorus Level", "Chorus Width"},
+    {"Vowel 1", "Vowel 2", "Vowel Glide", "Consonant", "Cons. Length", "Cons. Level"},
 };
 
 /* The active track's Digi Mono model, or -1. */
@@ -157,10 +162,26 @@ int digimono_range(uint32_t id, int32_t *out)
     return 1;
 }
 
+/* VO's vowels (VOC1, VOC2: the continuum of mono.c's VOWEL, nearest) and consonants (CONS: 8 zones) */
+static const char *const vowel_name[10] = {"OO", "U", "AW", "AH", "UH", "AE", "EH", "IH", "EE", "ER"};
+static const char *const cons_name[8] = {"-", "S", "SH", "F", "H", "T", "K", "P"};
+
 char *digimono_text(uint32_t id, int32_t value)
 {
-    if (active_model() < 0 || knob_of(id) < 0)
+    int m = active_model(), k = knob_of(id), v = (value >> 8) & 0x7f;
+    const char *t = 0;
+    if (m < 0 || k < 0)
         return 0;
+    if (m == MONO_VO && k <= 1)
+        t = vowel_name[(v * 9 * 2 + 127) / 254];
+    else if (m == MONO_VO && k == 3)
+        t = cons_name[v >> 4];
+    if (t) {
+        char *o = FMT_BUF;
+        while ((*o++ = *t++))
+            ;
+        return FMT_BUF;
+    }
     FORMAT(FMT_INT, value, FMT_BUF);
     return FMT_BUF;
 }
@@ -183,6 +204,7 @@ static const uint8_t mono_def[MONO_MACHINES][6] = {
     {0, 40, 0, 0, 0, 0},                /* SAW   UNIL UNIW UNIX SUBX SUB1 SUB2   */
     {0, 40, 0, 64, 0, 40},              /* PULS  UNIL UNIW SUB PW PWAD PWRS      */
     {63, 63, 63, 0, 0, 127},            /* ENS   PCH2 PCH3 PCH4 WAVE CHRL CHRW   */
+    {43, 113, 64, 0, 40, 100},          /* VO    VOC1 (AH) VOC2 (EE) V-SW CONS CLEN CVOL */
 };
 
 static const uint8_t *seen_kit;

@@ -21,6 +21,7 @@ enum {
     MONO_SAW  = 2,      /* SWAVE-SAW   band-limited saw, unison, two sub-oscillators              */
     MONO_PULS = 3,      /* SWAVE-PULS  band-limited pulse, PWM, unison, two sub-oscillators       */
     MONO_ENS  = 4,      /* SWAVE-ENS   four oscillators at set intervals, saw..pulse, chorus      */
+    MONO_VO   = 5,      /* VO-6        a formant voice: vowel 1 -> vowel 2, consonants              */
     MONO_MACHINES
 };
 
@@ -33,13 +34,15 @@ enum {
  *   SAW      UNIL  UNIW  UNIX  -     SUBX  SUB1  SUB2
  *   PULS     UNIL  UNIW  SUB1  SUB2  PW    PWAD  PWRS
  *   ENS      PCH2  PCH3  PCH4  WAVE  PW    CHRL  CHRW
+ *   VO       VOC1  VOC2  V-SW  VOIC  CONS  CLEN  CVOL
  */
 #define MONO_PARAMS 7
 
 #define MONO_CHO_LEN 512            /* the ENS chorus delay line, samples (10.7 ms); a power of two */
 #define MONO_INC_MAX 0x40000000u    /* 12 kHz: the highest fundamental the oscillators play         */
 
-/* One voice's state. Zero it once (or call mono_init); mono_trig starts a note. 1,072 bytes. */
+/* One voice's state. Zero it once (or call mono_init); mono_trig starts a note. 1,112 bytes: 48 of
+ * 32-bit words and bytes, the chorus line (16-bit), then the VO's state (32-bit words only). */
 struct mono_voice {
     uint32_t ph[4];                 /* oscillator phases: main + unison (SAW, PULS), osc 1..4 (ENS)  */
     uint32_t lfo;                   /* PULS: the PWM LFO; ENS: the chorus LFO                         */
@@ -51,6 +54,10 @@ struct mono_voice {
     uint8_t  sub;                   /* SAW, PULS: main-oscillator wraps, bit 0 / bits 0-1 = sub 1 / 2 */
     uint8_t  pad;
     int16_t  dl[MONO_CHO_LEN];      /* ENS: chorus delay line                                        */
+    int32_t  f_lo[3], f_bp[3];      /* VO: the three formant resonators                              */
+    int32_t  c_lo, c_bp;            /* VO: the consonant's noise band                                */
+    int32_t  glp;                   /* VO: the glottal source's low-pass                             */
+    uint32_t age;                   /* VO: samples since the note started, saturating                */
 };
 
 /* Clear a voice. */

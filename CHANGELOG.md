@@ -3,6 +3,25 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## Digi Mono 0.6 (HW: not yet)
+- New machine **MONO VO**, a formant voice after the Monomachine's VO-6:
+  - three vowel resonators on a glottal source, from published vowel measurements;
+  - VOC1 to VOC2 glide (V-SW), with the vowels shown by name;
+  - consonants S, SH, F, H, T, K and P (CONS, CLEN, CVOL).
+- **Shares a build with digisophie:**
+  - machine ids move to 20..25 (SOPHIE is 7);
+  - the render hook moves one instruction later (0x40077fc2);
+  - the SRC page's name and value hooks sit at the functions' callers instead of their entries.
+  - elekloader accepts core + digimono + digisophie (with digiutils, digimatrix, digieq); both machines
+    work in one digiemu build.
+- A project saved with 0.3's ids (6..10) loads those tracks as ONESHOT.
+
+## Digi Mono 0.5
+- The engine's audio goes in after the voice loop (0x40077fba), so the AMP envelope applies.
+- The machines render as ONESHOT.
+- The FLTR / AMP / LFO pages are measured in digiemu (tests/digiemu_mono_fx.py). One issue is open:
+  part of the voice ignores FREQ and VOL.
+
 ## Digi Mono 0.3 (HW: not yet)
 - New elekloader mod `digimono` (needs core 2.1): five SRC machines after the Monomachine's GND and SWAVE
   machines - MONO SIN, MONO NOISE, MONO SAW, MONO PULSE and MONO ENS - played by a clean-room synth engine

@@ -114,13 +114,7 @@ def swap16(b):
 
 def host_state_be(v):
     """The PC's voice state in the ColdFire's byte order (the struct's layout is the same on both)."""
-    raw = bytes(v.raw)
-    out = bytearray()
-    out += b"".join(raw[i:i + 4][::-1] for i in range(0, 44, 4))       # ph[4] lfo rng sh tsh hold thold red
-    out += raw[44:46][::-1]                                             # wr
-    out += raw[46:48]                                                   # sub pad
-    out += swap16(raw[48:])                                             # dl[]
-    return bytes(out)
+    return H.swap_state(bytes(v.raw))
 
 
 def main():
@@ -133,7 +127,7 @@ def main():
     cases = blocks = 0
     same = kept_all = True
     for case in range(80):
-        m = rnd.randrange(6) if case % 10 else 5                  # 5: out of range, must be silence
+        m = rnd.randrange(6) if case % 10 else 6                  # 6: out of range, must be silence
         cf.init()
         hv = H.Voice()
         H.LIB.mono_init(ctypes.byref(hv))
@@ -167,6 +161,7 @@ def main():
         ("SAW", H.SAW, [0] * 7, [127, 127, 127, 0, 64, 127, 127]),
         ("PULS", H.PULS, [0, 0, 0, 0, 64, 0, 0], [127, 64, 127, 127, 64, 127, 64]),
         ("ENS", H.ENS, [63, 63, 63, 0, 64, 0, 0], [67, 70, 75, 64, 64, 127, 127]),
+        ("VO", H.VO, [42, 113, 64, 0, 0, 40, 100], [42, 113, 64, 64, 20, 127, 127]),
     ]
     inc = H.pitch_inc(48)
     worst = 0

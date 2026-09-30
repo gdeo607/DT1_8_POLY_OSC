@@ -136,7 +136,7 @@ def run_one(name):
         n = st["n"]
         uc = m.uc
         if n == 0:
-            uc.hook_add(UC_HOOK_CODE, after, begin=0x40077fc0, end=0x40077fc0)
+            uc.hook_add(UC_HOOK_CODE, after, begin=0x40077fc8, end=0x40077fc8)
             uc.hook_add(UC_HOOK_CODE, mst, begin=0x400721e6, end=0x400721e6)
             uc.hook_add(UC_HOOK_CODE, late, begin=0x4007814a, end=0x4007814a)
             if os.environ.get("TRACE"):

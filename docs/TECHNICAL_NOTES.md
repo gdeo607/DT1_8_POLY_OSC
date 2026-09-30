@@ -1342,3 +1342,21 @@ Found in OS 1.53 with the disassembly and checked in digiemu (tests/digiemu_mono
 - **Cost** (digiemu, instructions a block in core + digimono while track 1 plays): SAW at its defaults
   about 2,400, every oscillator on about 5,900, ENS with the chorus about 6,600; a track not playing about
   100. The stock render is about 84,000.
+
+## Digi Mono 0.5 / 0.6 (2026-10-01): the voice buffers after the loop, and sharing with digisophie
+- **Where the audio goes in.** After the voice loop, each voice's 32 Q31 samples are at 0x80001a18 + 128 v.
+  The render then works on them in place, block after block: 0x40072478 (reads 0x40072540..), 0x40073280,
+  0x40073100, 0x40072300, then the mixer reads them (0x40071980). The order was traced with a memory hook
+  in digiemu. Written at 0x40077fba / 0x40077fc2, a Digi Mono block gets the AMP envelope (read at
+  0x40078050..5e, slots 38..40), PAN and the filter; written at 0x4007606e (0.3) it did not get the
+  envelope. VOL (slot 45) is read in the mixer (0x40071d26, via 0x4007188c; PAN at 0x40071d3a).
+- **The voice gain** at voice + 16 is 0x40074c60(level word, LEV word) = LEV^2 x track level: it is not
+  the envelope and not VOL.
+- **digisophie's sites** (0.1.7): 0x400657cc (layout), 0x4000fe8a / 0x4000feac (names), 0x4000f324 (value
+  text), 0x4000f2bc (knob graphics), 0x40065794 (UI record), 0x400657ee (popup text), the 0x40078f0c
+  callers 0x4000ff20 / 0x400100c4 / 0x4000f534 / 0x4000f5fc, and 0x40077fba (audio into 0x80001a18).
+  SOPHIE is machine 7, rendered as its own id. It reads the amp envelope's phase and level at
+  0x4199df54 / 0x4199df58 + 12 t.
+- **Callers**, for sharing those functions: 0x4000fe8a is called only at 0x40030daa, 0x4000feac only at
+  0x40032d36, and 0x400657ee at 0x40032d16, 0x40038714, 0x40038854, 0x40039142 and 0x400392ea. A mod
+  redirecting the call (`keep2`) and falling through to the function leaves the entry to another mod.

@@ -96,15 +96,16 @@ pattern is renamed "DEMO". Only screenshots are published here - no firmware, an
 
 Full controls: [docs/USAGE.md](docs/USAGE.md). Version history: [CHANGELOG.md](CHANGELOG.md).
 
-**Digi Mono** (elekloader mod `digimono`, 0.3, needs core 2.1) - synth machines after the Monomachine's GND and SWAVE machines
+**Digi Mono** (elekloader mod `digimono`, 0.6, needs core 2.1) - synth machines after the Monomachine's GND and SWAVE machines
 - Five new machines in the FUNC+SRC list: **MONO SIN**, **MONO NOISE**, **MONO SAW** (unison, two sub-oscillators),
-  **MONO PULSE** (PWM, unison, sub) and **MONO ENS** (four oscillators at set intervals, chorus). They need no
+  **MONO PULSE** (PWM, unison, sub), **MONO ENS** (four oscillators at set intervals, chorus) and **MONO VO**
+  (a formant voice: vowel to vowel, consonants). They need no
   sample; the track's filter, amp, LFOs, sends and p-locks work on them as on a sample.
 - The SRC page shows each machine's own knobs (B, C, E, F, G, H, 0..127); A is TUNE.
 - A clean-room engine: no Monomachine code or data. Checked in emulation on the real firmware, bit for bit
   (tests/digiemu_mono.py); **not yet on a unit**, and 3-8 % of the render per playing voice, so keep to a few
-  Digi Mono tracks at once for now. It cannot share a build with Digi Poly 1.0f (both change the machine
-  list). Details: [mods/digimono/DESIGN.md](mods/digimono/DESIGN.md).
+  Digi Mono tracks at once for now. It shares a build with digisophie, digislicer, digiutils, digimatrix and
+  digieq, but not with Digi Poly 1.0f (both change the machine list). Details: [mods/digimono/DESIGN.md](mods/digimono/DESIGN.md).
 
 <table><tr><td align="center"><img src="docs/img/digimono_list.png" width="384" alt="machine list with the Digi Mono machines"><br><sub>FUNC+SRC: the Digi Mono machines after SLICE</sub></td><td align="center"><img src="docs/img/digimono_src.png" width="384" alt="MONO SAW SRC page"><br><sub>A MONO SAW track's SRC page</sub></td></tr></table>
 
@@ -134,7 +135,7 @@ run next to other mods for this OS (for example digihealth's FAST AUDIO / SYSTEM
 | `digiutils` | **Digi utilities**: the utility page on a **held "..."** (waveform -> spectrum -> X-Y), tuner, activity boxes, **Song mode kept** (1.9a) |
 | `digieq` | **Digi EQ**: the 4-band master EQ as a FUNC+LFO master page, on the master mix so every output carries it, kept per pattern in the kit and over a power cycle, with a MASTER EQ entry in SETTINGS > GLOBAL FX/MIX (1.0b) |
 | `digimatrix` | **Digi Matrix**: the LFO modulation matrix; 8 cross-track routing slots with their own depth, on a SETTINGS > MOD MATRIX page, kept per pattern in the kit and over a power cycle (1.0b) |
-| `digimono` | **Digi Mono**: synth machines MONO SIN / NOISE / SAW / PULSE / ENS after the Monomachine's GND and SWAVE machines, with their own SRC page knobs (0.3; needs core 2.1, not with digipoly 1.0f) |
+| `digimono` | **Digi Mono**: synth machines MONO SIN / NOISE / SAW / PULSE / ENS / VO after the Monomachine's GND, SWAVE and VO-6 machines, with their own SRC page knobs (0.6; needs core 2.1; combines with digisophie, not with digipoly 1.0f) |
 | `dt8poly` | the earlier POLY mod (control track rotation, internal MIDI and CC cable, per-voice TUNE/LFO); superseded by `digipoly`, built only on request (`--mods dt8poly`) |
 
 ```sh

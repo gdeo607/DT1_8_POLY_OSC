@@ -13,6 +13,7 @@ same samples) and checks, with numbers printed:
   PULS         duty cycle from PW; PWAD / PWRS sweeping it
   ENS          PCH2..4 as intervals; WAVE saw -> pulse; CHRL / CHRW chorus
   NOIS         ST (sample and hold), RED (darker), STON (pitched)
+  VO           the formants of three vowels; VOC1 -> VOC2 by V-SW; a consonant at the start; pitch; level
   all          random settings and pitches: bounded, no DC, block size makes no difference
 """
 import math, os, random, sys
@@ -20,7 +21,7 @@ import math, os, random, sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mono_lib import FS, SIN, NOIS, SAW, PULS, ENS, NAMES, Engine, play, pitch_inc, note_hz
+from mono_lib import FS, SIN, NOIS, SAW, PULS, ENS, VO, NAMES, Engine, play, pitch_inc, note_hz
 
 FAIL = []
 
@@ -195,11 +196,54 @@ def main():
     null, peak = band_db(t, 2 * note_hz(57), 3), band_db(t, note_hz(57), 3)
     check(null < peak - 20, "STON 127: null at 2 f (%.1f dB) against f (%.1f dB)" % (null, peak))
 
+    print("VO")
+    VOW = {"oo": (0, 300, 870), "ah": (3, 730, 1090), "ee": (8, 270, 2290)}
+    def formants(x, f0, f2lo):
+        """F1 and F2 from the harmonics' levels: the strongest harmonic in 200..950 Hz, then above f2lo."""
+        sp = np.abs(np.fft.rfft(x * np.blackman(len(x))))
+        fr = np.fft.rfftfreq(len(x), 1 / FS)
+        # each harmonic's level over the source's own (a saw, 1/k, through the one-pole low-pass
+        # y += (x - y) / 4): what is left is the resonators' response
+        src = lambda f: 0.25 / abs(1 - 0.75 * np.exp(-2j * np.pi * f / FS))
+        hs = [(k * f0, sp[np.argmin(abs(fr - k * f0))] * k / src(k * f0)) for k in range(1, int(3200 / f0))]
+        f1 = max((h for h in hs if 200 <= h[0] <= 950), key=lambda h: h[1])[0]
+        f2 = max((h for h in hs if max(f2lo, f1 * 1.45) <= h[0] <= 2700), key=lambda h: h[1])[0]
+        return f1, f2
+    f0 = note_hz(36)
+    for name, (k, F1, F2) in VOW.items():
+        voc = int(math.ceil(k * 127 / 9))
+        x = play(VO, [voc, voc, 0, 0, 0, 0, 0], 36, 1.0)
+        e1, e2 = formants(x[FS // 4:], f0, 700)
+        check(abs(e1 / F1 - 1) < 0.2 and abs(e2 / F2 - 1) < 0.2,
+              "VOC %s: F1 %.0f Hz (%d), F2 %.0f Hz (%d)" % (name, e1, F1, e2, F2))
+    e = Engine(VO, [0, 113, 64, 0, 0, 0, 0]); e.trig()               # oo -> ee (VOC 113)
+    x = e.render(FS, note=36)
+    a2 = formants(x[:2400], f0, 700)[1]
+    b2 = formants(x[FS // 2:], f0, 700)[1]
+    check(b2 > a2 + 800, "V-SW 64, oo -> ee: F2 %.0f Hz at the start, %.0f Hz after 0.5 s" % (a2, b2))
+    x0 = play(VO, [127, 127, 0, 0, 0, 0, 0], 36, 1.0)
+    check(abs(formants(x0[FS // 2:], f0, 700)[1] - formants(x0[:2400], f0, 700)[1]) < 150,
+          "V-SW 0: the vowel stays")
+    def hi(x):
+        sp = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+        fr = np.fft.rfftfreq(len(x), 1 / FS)
+        return 10 * math.log10(sp[fr > 4000].sum() + 1e-12)
+    xs = play(VO, [43, 43, 0, 0, 16, 90, 127], 36, 1.0)             # CONS 16: S
+    check(hi(xs[:1440]) > hi(xs[FS // 2:FS // 2 + 1440]) + 15,
+          "CONS S: noise above 4 kHz at the start %.1f dB over the held vowel's" % (hi(xs[:1440]) - hi(xs[FS // 2:FS // 2 + 1440])))
+    xn = play(VO, [43, 43, 0, 0, 0, 90, 127], 36, 1.0)
+    check(abs(hi(xn[:1440]) - hi(xn[FS // 2:FS // 2 + 1440])) < 6, "CONS 0: no burst")
+    xv = play(VO, [43, 43, 0, 0, 0, 0, 0], 57, 1.0)
+    pv = peak_hz(xv[FS // 4:], 200, 240)
+    check(abs(cents(pv, note_hz(57))) < 1, "pitch: fundamental %.2f Hz at note 57 (%.2f)" % (pv, note_hz(57)))
+    lv = 20 * math.log10(np.std(xv) / np.std(play(SAW, [0] * 7, 57, 1.0)))
+    check(-18 < lv < 3, "level: %.1f dB against a plain saw" % lv)
+
     print("all machines, random settings")
     rnd = random.Random(1)
     worst_dc = 0
     for i in range(120):
-        m = rnd.randrange(5)
+        m = rnd.randrange(6)
         prm = [rnd.randrange(128) for _ in range(7)]
         note = rnd.uniform(36, 120)
         x = play(m, prm, note, 1.0)

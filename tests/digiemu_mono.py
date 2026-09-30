@@ -28,10 +28,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ap = argparse.ArgumentParser()
 ap.add_argument("--digiemu", required=True)
 ap.add_argument("--fw", required=True)
-ap.add_argument("--machine", default="SAW", choices=["SIN", "NOIS", "SAW", "PULS", "ENS"])
+ap.add_argument("--machine", default="SAW", choices=["SIN", "NOIS", "SAW", "PULS", "ENS", "VO"])
 ap.add_argument("--knobs", default="", help="knob turns, e.g. B:+20,E:-5 (notches)")
 ap.add_argument("--png", default="")
 ap.add_argument("--wav", default="")
+ap.add_argument("--menu-before", type=int, default=0,
+                help="added machines listed before Digi Mono's in FUNC+SRC (e.g. 1 with digisophie's SOPHIE)")
 ap.add_argument("--stock", required=True, help="official OS 1.53 .syx (for the link map)")
 ap.add_argument("--elekloader", required=True)
 ap.add_argument("--mods", nargs="+", required=True, help="the build's .elemod files, core first")
@@ -55,7 +57,8 @@ MODEL = H.NAMES.index(a.machine)
 KNOBS = "BCEFGH"                                    # the six knobs Digi Mono uses (digimono.c knob_slot)
 SLOTS = [18, 19, 21, 22, 23, 24]
 DEFAULTS = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 40, 0, 0, 0, 0], [0, 40, 0, 64, 0, 40],
-            [63, 63, 63, 0, 0, 127]]
+            [63, 63, 63, 0, 0, 127], [43, 113, 64, 0, 40, 100]]
+MACH_FIRST = 20                                     # digimono's machine ids: 20..25
 TURNS = []
 for s in filter(None, a.knobs.split(",")):
     k, n = s.split(":")
@@ -85,7 +88,7 @@ from unicorn.m68k_const import UC_M68K_REG_A7
 import emu.gui as G
 
 SNAP = [os.path.join(dp, f) for dp, _, fs in os.walk(FW + "/snapshots") for f in fs if f == "gui.snap"][0]
-AFTER = 0x40077fc0                                  # right after digimono_rblock returns (voice 0's block: 0x80001a18)
+AFTER = 0x40077fc8                                  # right after digimono_rblock returns (voice 0's block: 0x80001a18)
 MASTER = 0x400721e6                                 # the master pair at 0x8000ea70 (digieq's site)
 FAIL = []
 
@@ -118,7 +121,7 @@ def tap(code, hold=20, gap=40):
 
 at(1, "press", 3); at(20, "press", 39); at(20, "release", 39); at(5, "release", 3); at(150, "wait")   # PTN + 16
 at(1, "press", 1); at(20, "press", 20); at(20, "release", 20); at(5, "release", 1); at(80, "wait")    # FUNC+SRC
-for _ in range(4 + MODEL):                          # ONESHOT WERP REPITCH SLICE, then ours
+for _ in range(4 + a.menu_before + MODEL):          # ONESHOT WERP REPITCH SLICE, others, then ours
     tap(15, 20, 60)
 at(0, "snap", "1_machine_list")
 tap(12, 20, 80); tap(13, 20, 60)                    # YES, NO
@@ -211,7 +214,7 @@ print("  ran %.0f s: %d blocks of voice 0, %d of the master" % (time.time() - t0
 
 print("the track and its SRC page")
 mach, dk = knobs.get("defaults", (None, None))
-check(mach == 6 + MODEL, "track 1's machine is %s (%s)" % (6 + MODEL, mach))
+check(mach == MACH_FIRST + MODEL, "track 1's machine is %s (%s)" % (MACH_FIRST + MODEL, mach))
 check(dk == DEFAULTS[MODEL], "knobs B C E F G H hold the machine's defaults %s (%s)" % (DEFAULTS[MODEL], dk))
 if TURNS:
     # digiemu's encoder events do not map one to one onto the firmware's steps (it accelerates), so the check
@@ -239,22 +242,20 @@ starts = sum(b[0] for b in blocks)
 secs = len(blocks) * 32 / 48000.0
 check(0.6 * secs / 0.5 <= starts <= 1.4 * secs / 0.5 + 2,
       "voice 0 started %d times in %.1f s (a trig every 4 steps at 120 BPM: every 0.5 s)" % (starts, secs))
-mine = [b for b in blocks if b[4] == 6 + MODEL]
-check(len(mine) > len(blocks) * 0.9, "voice 0 plays machine %d in %d of %d blocks" % (6 + MODEL, len(mine), len(blocks)))
+mine = [b for b in blocks if b[4] == MACH_FIRST + MODEL]
+check(len(mine) > len(blocks) * 0.9, "voice 0 plays machine %d in %d of %d blocks" % (MACH_FIRST + MODEL, len(mine), len(blocks)))
 
 # replay on this PC: the same engine, the same starts, notes and words, block by block
 e = H.Engine(MODEL)
 if st["init"]:                                       # the device's state (big-endian) into this PC's struct
-    b = st["init"]
-    le = b"".join(b[i:i + 4][::-1] for i in range(0, 44, 4)) + b[44:46][::-1] + b[46:48] \
-        + b"".join(b[i + 1:i + 2] + b[i:i + 1] for i in range(48, H.VOICE_SIZE, 2))
+    le = H.swap_state(st["init"])
     e.v.raw[:] = le
 same = diff = 0
 first_bad = None
 started = False
 skipped = 0
 for i, (sb, note, words, samples, mb, gain) in enumerate(blocks):
-    if mb != 6 + MODEL:
+    if mb != MACH_FIRST + MODEL:
         continue
     if sb:
         e.trig()
@@ -278,6 +279,8 @@ for i, (sb, note, words, samples, mb, gain) in enumerate(blocks):
         p = [k[0], k[1], k[2], 0, k[3], k[4], k[5]]
     elif MODEL == H.ENS:
         p = [k[0], k[1], k[2], k[3], 64, k[4], k[5]]
+    elif MODEL == H.VO:
+        p = [k[0], k[1], k[2], 0, k[3], k[4], k[5]]
     pitch = note + ((words[0] - 16384) << 8)
     x = e.render(32, inc=H.LIB.mono_pitch_inc(pitch >> 9), params=p)
     want = [int(round(v * 32768)) << 16 for v in x]
@@ -303,6 +306,9 @@ if len(seg) == 48000 and np.max(np.abs(seg)) > 0:
     if MODEL == H.NOIS:                        # noise: sound, but no line at the note (the voice itself is
         c4 = near(261.63)                       # checked bit for bit above; the track's filter shapes the rest)
         check(c4 < -20, "the master mix carries noise, not a tone: %.1f dB near C4" % c4)
+    elif MODEL == H.VO:                        # a voice: its fundamental is the note's (the formants shape it)
+        pk = f[(f > 200) & (f < 330)][np.argmax(s[(f > 200) & (f < 330)])]
+        check(abs(1200 * math.log2(pk / 261.63)) < 20, "the master mix's fundamental near C4: %.1f Hz" % pk)
     elif MODEL == H.ENS:                       # oscillator 1 at the note and 2..4 at their PCH intervals
         _, kk = knobs.get("turned", knobs["defaults"])
         want = [0] + [max(-36, min(36, kk[i] - 63)) for i in range(3)]

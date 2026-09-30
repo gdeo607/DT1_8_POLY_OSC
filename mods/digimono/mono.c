@@ -152,6 +152,8 @@ void mono_trig(struct mono_voice *v, int machine)
     for (i = 1; i < 4; i++)
         v->ph[i] = rnd(v);                          /* unison / ensemble: free, like analog ones */
     v->sub = 0;
+    v->age = 0;
+    v->c_lo = v->c_bp = 0;
     (void)machine;
 }
 
@@ -415,6 +417,111 @@ static void render_ens(struct mono_voice *v, const uint8_t *p, uint32_t inc, int
     v->wr = wr;
 }
 
+/* ---- VO: a formant voice ------------------------------------------------------------------------ *
+ * A glottal source (a band-limited saw through a one-pole low-pass, with breath noise mixed in by VOIC)
+ * through three parallel resonators at a vowel's first three formants. VOC1 and VOC2 pick vowels along
+ * a continuum; V-SW glides from VOC1 to VOC2 after the note starts (0: VOC1 only). CONS picks a
+ * consonant, a band of noise with its own decay (CLEN) and level (CVOL) at the note's start, the
+ * vowel fading in under it. The vowel formants are published averages of measured male vowels
+ * (Peterson and Barney, 1952); nothing here comes from the Monomachine. */
+
+/* F1, F2, F3 in Hz, along a continuum: u  U  aw  ah  uh  ae  eh  ih  ee  er */
+static const uint16_t VOWEL[10][3] = {
+    {300, 870, 2240}, {440, 1020, 2240}, {570, 840, 2410}, {730, 1090, 2440}, {640, 1190, 2390},
+    {660, 1720, 2410}, {530, 1840, 2480}, {390, 1990, 2550}, {270, 2290, 3010}, {490, 1350, 1690},
+};
+static const uint16_t VBW[3] = {80, 100, 140};             /* formant bandwidths, Hz */
+static const int16_t VAMP[3] = {16384, 8192, 4096};        /* formant levels, Q14: 1, -6, -12 dB */
+/* consonants: none, S, SH, F, H, T, K, P: centre (Hz), q (Q14: bandwidth / centre), longest (ms) */
+static const uint16_t CONS[8][3] = {
+    {0, 0, 0}, {6000, 4900, 400}, {2800, 8200, 400}, {7000, 16384, 400}, {1200, 16384, 400},
+    {4000, 6500, 30}, {1800, 6500, 40}, {700, 9800, 30},
+};
+
+/* 2 sin(pi f / 48000) in Q14, f < 12 kHz: the state-variable filter's frequency coefficient */
+static int32_t svf_f(int32_t hz)
+{
+    int32_t pos = (hz * 1398) >> 10;                        /* Q8 index into MONO_SINE: hz * 512 / 96000 */
+    int32_t i = pos >> 8, fr = pos & 255;
+    int32_t a = MONO_SINE[i], b = MONO_SINE[i + 1];
+    return a + (((b - a) * fr) >> 8);                      /* sin in Q15 = 2 sin in Q14 */
+}
+
+static void render_vo(struct mono_voice *v, const uint8_t *p, uint32_t inc, int16_t *out, int n)
+{
+    int32_t fk[3], qk[3], gk[3], k, cf = 0, cq = 0, cg, lenc, age0, pos1, pos2, pos, m, breath;
+    uint32_t dt = inc >> 16, ph = v->ph[0], morph;
+    int ct = p[4] >> 4;                                     /* CONS: 8 zones */
+    /* the vowel: VOC1 -> VOC2 by V-SW, per block */
+    pos1 = p[0] * 9 * 256 / 127;                            /* Q8 along the continuum 0..9 */
+    pos2 = p[1] * 9 * 256 / 127;
+    if (p[2] == 0) {
+        m = 0;
+    } else {
+        uint32_t mi = MONO_RATE[127 - p[2]] * 10;           /* 5 ms .. 2 s from VOC1 to VOC2 */
+        uint32_t a = v->age > 0x7fffff ? 0x7fffff : v->age;
+        morph = (a >= 0xffffffffu / (mi ? mi : 1)) ? 0xffffffffu : a * mi;
+        m = (int32_t)(morph >> 17);                         /* Q15 */
+    }
+    pos = pos1 + (((pos2 - pos1) * m) >> 15);
+    for (k = 0; k < 3; k++) {
+        int32_t i = pos >> 8, fr = pos & 255, hz;
+        if (i >= 9) {
+            i = 8;
+            fr = 256;
+        }
+        hz = VOWEL[i][k] + (((VOWEL[i + 1][k] - VOWEL[i][k]) * fr) >> 8);
+        fk[k] = svf_f(hz);
+        qk[k] = (VBW[k] << 14) / hz;                        /* 1 / Q, Q14 */
+        gk[k] = VAMP[k];
+    }
+    /* the consonant */
+    lenc = 96 + ((p[5] * p[5] * 1188) >> 10);               /* CLEN: 2 ms .. 400 ms */
+    if (ct && lenc > CONS[ct][2] * 48)
+        lenc = CONS[ct][2] * 48;
+    if (ct) {
+        cf = svf_f(CONS[ct][0]);
+        cq = CONS[ct][1];
+    }
+    cg = MONO_GAIN[p[6]];
+    breath = MONO_GAIN[p[3]];
+    age0 = (int32_t)(v->age > 0x7fffffff ? 0x7fffffff : v->age);
+    while (n--) {
+        int32_t s, x, acc = 0, venv;
+        /* source: saw, softened, breath mixed in */
+        s = saw(ph >> 16, dt);
+        ph += inc;
+        v->glp += (s - v->glp) >> 2;                        /* about 1.9 kHz, one pole */
+        s = v->glp;
+        if (breath)
+            s += (((((int32_t)rnd(v) >> 16) - s) >> 1) * breath) >> 14;
+        /* the vowel fades in under the consonant: over its first half */
+        venv = 32767;
+        if (ct && age0 < (lenc >> 1))
+            venv = age0 * 32767 / ((lenc >> 1) + 1);      /* age0 < 9648: fits */
+        for (k = 0; k < 3; k++) {
+            int32_t in = (s * qk[k]) >> 14, hp;
+            v->f_lo[k] += (fk[k] * v->f_bp[k]) >> 14;
+            hp = in - v->f_lo[k] - ((qk[k] * v->f_bp[k]) >> 14);
+            v->f_bp[k] += (fk[k] * hp) >> 14;
+            acc += (v->f_bp[k] * gk[k]) >> 14;
+        }
+        x = (acc * (venv >> 1)) >> 13;                      /* x2 make-up with the fade */
+        if (ct && age0 < lenc) {                            /* the consonant: a noise band, decaying */
+            int32_t nz = ((int32_t)rnd(v) >> 17), hp, e = ((lenc - age0) << 15) / lenc;
+            int32_t in = (nz * cq) >> 14;
+            v->c_lo += (cf * v->c_bp) >> 14;
+            hp = in - v->c_lo - ((cq * v->c_bp) >> 14);
+            v->c_bp += (cf * hp) >> 14;
+            x += (((v->c_bp * e) >> 15) * cg) >> 14;        /* x2: the band's level is its q's */
+        }
+        *out++ = sat16(x);
+        age0 = age0 < 0x7fffffff ? age0 + 1 : age0;
+    }
+    v->ph[0] = ph;
+    v->age = (uint32_t)age0;
+}
+
 void mono_render(struct mono_voice *v, int machine, const uint8_t *p, uint32_t inc, int16_t *out, int n)
 {
     if (inc > MONO_INC_MAX)
@@ -425,6 +532,7 @@ void mono_render(struct mono_voice *v, int machine, const uint8_t *p, uint32_t i
     case MONO_SAW:  render_saw(v, p, inc, out, n); break;
     case MONO_PULS: render_puls(v, p, inc, out, n); break;
     case MONO_ENS:  render_ens(v, p, inc, out, n); break;
+    case MONO_VO:   render_vo(v, p, inc, out, n); break;
     default:
         while (n--)
             *out++ = 0;

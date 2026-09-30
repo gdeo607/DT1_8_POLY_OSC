@@ -1,11 +1,11 @@
 {
  "id": "digimono",
- "version": "0.5",
+ "version": "0.6",
  "title": "Digi Mono",
  "category": "Sound",
  "author": "gdeo607",
- "license": "GPL-2.0-or-later",
- "description": "Synth machines for the audio tracks, after the Monomachine's GND and SWAVE machines: MONO SIN, MONO NOISE, MONO SAW (unison, two sub-oscillators), MONO PULSE (PWM, unison, sub) and MONO ENS (four oscillators at set intervals, chorus), in the FUNC+SRC machine list. They need no sample; the track's filter, amp, LFOs and effects work on them as on a sample. A clean-room engine: no Monomachine code or data. The SRC page shows each machine's own knobs (B, C, E, F, G, H); A is TUNE, D the (unused) sample slot.",
+ "license": "MIT",
+ "description": "Synth machines for the audio tracks, after the Monomachine's GND and SWAVE machines: MONO SIN, MONO NOISE, MONO SAW (unison, two sub-oscillators), MONO PULSE (PWM, unison, sub), MONO ENS (four oscillators at set intervals, chorus) and MONO VO (a formant voice: vowel to vowel, consonants), in the FUNC+SRC machine list. They need no sample; the track's filter, amp, LFOs and effects work on them as on a sample. A clean-room engine: no Monomachine code or data. The SRC page shows each machine's own knobs (B, C, E, F, G, H); A is TUNE, D the (unused) sample slot.",
  "device": "digitakt-mk1",
  "os": "1.53",
  "sources": [
@@ -15,21 +15,21 @@
  ],
  "sites": [
   {
-   "addr": "0x40077fba",
-   "stock": "49f94199e444",
+   "addr": "0x40077fc2",
+   "stock": "487980001a18",
    "op": "jsr",
    "target": "digimono_rblock"
   },
   {
-   "addr": "0x4000fe8a",
-   "stock": "222f00080c81000000a4",
-   "op": "jmp",
+   "addr": "0x40030daa",
+   "stock": "4eb94000fe8a",
+   "op": "keep2",
    "target": "digimono_sname"
   },
   {
-   "addr": "0x4000feac",
-   "stock": "222f00080c81000000a4",
-   "op": "jmp",
+   "addr": "0x40032d36",
+   "stock": "4eb94000feac",
+   "op": "keep2",
    "target": "digimono_lname"
   },
   {
@@ -39,9 +39,33 @@
    "target": "digimono_prange"
   },
   {
-   "addr": "0x400657ee",
-   "stock": "222f00040c81000000a4",
-   "op": "jmp",
+   "addr": "0x40032d16",
+   "stock": "4eb9400657ee",
+   "op": "keep2",
+   "target": "digimono_vtext"
+  },
+  {
+   "addr": "0x40038714",
+   "stock": "4eb9400657ee",
+   "op": "keep2",
+   "target": "digimono_vtext"
+  },
+  {
+   "addr": "0x40038854",
+   "stock": "4eb9400657ee",
+   "op": "keep2",
+   "target": "digimono_vtext"
+  },
+  {
+   "addr": "0x40039142",
+   "stock": "4eb9400657ee",
+   "op": "keep2",
+   "target": "digimono_vtext"
+  },
+  {
+   "addr": "0x400392ea",
+   "stock": "4eb9400657ee",
+   "op": "keep2",
    "target": "digimono_vtext"
   }
  ],
@@ -54,7 +78,7 @@
     [
      0,
      "abs32",
-     "sym:digimono_m6",
+     "sym:digimono_m20",
      0
     ]
    ]
@@ -67,7 +91,7 @@
     [
      0,
      "abs32",
-     "sym:digimono_m7",
+     "sym:digimono_m21",
      0
     ]
    ]
@@ -80,7 +104,7 @@
     [
      0,
      "abs32",
-     "sym:digimono_m8",
+     "sym:digimono_m22",
      0
     ]
    ]
@@ -93,7 +117,7 @@
     [
      0,
      "abs32",
-     "sym:digimono_m9",
+     "sym:digimono_m23",
      0
     ]
    ]
@@ -106,7 +130,20 @@
     [
      0,
      "abs32",
-     "sym:digimono_m10",
+     "sym:digimono_m24",
+     0
+    ]
+   ]
+  },
+  {
+   "to": "core_machines",
+   "order": 65,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digimono_m25",
      0
     ]
    ]
@@ -117,12 +154,13 @@
  ],
  "resources": {
   "names": [
-   "machine:6",
-   "machine:7",
-   "machine:8",
-   "machine:9",
-   "machine:10",
-   "render:voice blocks 0x40077fba",
+   "machine:20",
+   "machine:21",
+   "machine:22",
+   "machine:23",
+   "machine:24",
+   "machine:25",
+   "render:voice blocks 0x40077fc2",
    "param:SLICE page names, ranges and values while a Digi Mono machine is active"
   ]
  },

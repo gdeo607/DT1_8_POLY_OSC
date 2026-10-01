@@ -12,38 +12,40 @@ One script, `tools/dev.sh`, runs the whole loop:
 It never writes to your unit, and it never puts firmware in git: everything it makes goes to `out/dev/`,
 which git ignores.
 
-## The easy path: the latest mods in elekloader's window
+## The easy path: one elekloader app that keeps itself up to date
 
-If you only want to pick mods and build your own `.syx`, skip the rest of this page.
+If you only want to pick mods and build your own `.syx`, this is all you need.
 
-Once, on macOS:
+Once, on macOS, in Terminal:
 
 ```sh
 brew install git python python-tk m68k-elf-binutils m68k-elf-gcc
 git clone https://github.com/gdeo607/digi1_mods ~/digi1_mods
+cd ~/digi1_mods && git checkout claude/digimono
+tools/macos/install_app.sh ~/Desktop/Elektron     # your Elektron folder, the one holding "Digitakt 1"
 ```
 
-Each time you want the latest:
+That makes `elekloader.app` in the Elektron folder. It also moves older elekloader launchers to
+`Digitakt 1/4_bin/old_launchers_<date>`, so only one is left; nothing is deleted. Double-click it:
 
-```sh
-cd ~/digi1_mods
-git checkout claude/digimono      # or main, once it is merged
-export STOCK="/full/path/to/Digitakt_OS1.53.syx"
-tools/dev.sh mods                 # the latest elekloader and mods, as .elemod files
-tools/dev.sh loader               # elekloader's window, with all of them listed
-```
+- **It is elekloader's own window,** run from a copy of elekloader that it keeps current. The first
+  time, it asks for your official `Digitakt_OS1.53.syx`, and remembers it.
+- **When it opens, it checks GitHub** for new versions of elekloader, digi1_mods and the mods, and
+  offers to update. **Check for updates** (top, next to the title) does the same at any time.
+- **Updating** fetches them, builds every mod from your OS file, lists the new mods in the window, puts
+  them in `Digitakt 1/0_Latest_Mods`, and moves the previous ones to `Digitakt 1/4_bin/mods_<date>`.
+  When elekloader itself changed, it offers to restart into the new version.
+- **Only one window at a time:** opening it again while it is open says so.
 
-In the window, tick the mods you want; it ticks core for you. It marks a pair that clashes. Then click
-BUILD FIRMWARE, which saves a verified `.syx`. Flash that file as in step 6.
+Then tick the mods you want (it marks pairs that clash) and click BUILD FIRMWARE. Flash the `.syx` as in
+step 6. Its log is `~/Library/Logs/elekloader.log`.
 
-**Or with a double-click:** copy `tools/macos/Update Digitakt mods.command` into your Elektron folder (the
-one holding `Digitakt 1`). It does all of the above. The new mods go to `Digitakt 1/0_Latest_Mods`, the
-previous ones to `Digitakt 1/4_bin/mods_<date>`, and it reads your OS file from
-`Digitakt 1/1_official_firmware/Digitakt_OS1.53.syx`; edit its first lines if your folders differ.
+A mod you once added with "Install from file..." stays in elekloader's library and is listed instead of
+a newer file of the same name: Uninstall it in the window.
 
-The window here is elekloader's own, run from the same checkout the mods were built with, so its core
-always matches theirs. If you once installed a mod of the same file name into the window's library by
-hand, that copy is listed instead: `loader` names it, and Uninstall in the window removes it.
+Without the app (any system): `tools/dev.sh mods` builds the latest mods into `out/dev/elemods`, and
+`tools/dev.sh loader` opens the window with them. `python3 tools/elekloader_app.py` is the window with
+updates, as the app runs it.
 
 ## 1. What you need (once)
 

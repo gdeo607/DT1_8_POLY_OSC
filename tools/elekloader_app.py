@@ -50,25 +50,44 @@ def head(path):
     return git(path, 'rev-parse', 'HEAD')[1] if os.path.isdir(os.path.join(path, '.git')) else ''
 
 
+PROJECTS = [('digi1_mods', ROOT, '@{u}')] + [(n, os.path.join(TOOLS, n), 'origin/HEAD') for n in FETCHED]
+URLS = {'digi1_mods': 'github.com/gdeo607/digi1_mods', 'elekloader': 'github.com/irpina/elekloader',
+        'digisophie': 'github.com/soejrd/digisophie', 'digislicer': 'github.com/irpina/digislicer',
+        'digifilter': 'github.com/DigiAlchemydsp/DigiFilter', 'digineighbor': 'github.com/irpina/digineighbor'}
+
+
 def check_updates():
-    """-> [(name, what)] for each project with new commits on GitHub, or not built yet."""
-    found = []
-    projects = [('digi1_mods', ROOT, '@{u}')] + [(n, os.path.join(TOOLS, n), 'origin/HEAD') for n in FETCHED]
-    for name, path, upstream in projects:
+    """-> (found, state): found is [(project, what)] for each one with new commits on GitHub, or not
+    built yet; state is {project: {'behind': n, 'latest': '<date> <subject>', 'error': ...}}."""
+    found, state = [], {}
+    for name, path, upstream in PROJECTS:
         if not os.path.isdir(os.path.join(path, '.git')):
             found.append((name, 'not fetched yet'))
+            state[name] = {'error': 'not fetched yet'}
             continue
         rc, _ = git(path, 'fetch', '-q', 'origin')
         if rc:
             found.append((name, 'could not reach GitHub'))
+            state[name] = {'error': 'could not reach GitHub'}
             continue
         rc, n = git(path, 'rev-list', '--count', 'HEAD..' + upstream)
-        if rc == 0 and n not in ('', '0'):
-            _, subj = git(path, 'log', '-1', '--format=%cs %s', upstream)
-            found.append((name, '%s new commit%s, latest: %s' % (n, '' if n == '1' else 's', subj[:60])))
+        _, subj = git(path, 'log', '-1', '--format=%h %cs %s', upstream)
+        state[name] = {'behind': int(n) if rc == 0 and n.isdigit() else 0, 'latest': subj}
+        if state[name]['behind']:
+            found.append((name, '%s new commit%s, latest: %s' % (n, '' if n == '1' else 's', subj[8:68])))
     if not glob.glob(os.path.join(ELEMODS, '*.elemod')):
         found.append(('mods', 'not built yet'))
-    return [f for f in found if f[1] != 'could not reach GitHub'] or found
+    return ([f for f in found if f[1] != 'could not reach GitHub'] or found), state
+
+
+def project_of(path):
+    """The project a listed .elemod is built from, or None (a file installed by hand)."""
+    if os.path.dirname(os.path.abspath(path)) != os.path.abspath(ELEMODS):
+        return None
+    name = os.path.basename(path).split('-')[0].lower()
+    if name == 'core':
+        return 'elekloader'
+    return name if name in FETCHED else 'digi1_mods'
 
 
 def mirror(elektron):
@@ -138,7 +157,94 @@ class Updates:
         self.btn.pack(side='left')
         self.status = tk.Label(box, text='', font=(gui.FONT, 9), fg=C['muted'], bg=C['panel'])
         self.status.pack(side='left', padx=8)
+        self.state, self.checked_at = {}, None
+        self._version_tab(ttk)
         root.after(100, self._poll)
+
+    # -- the Version tab --------------------------------------------------------------------------
+    def _version_tab(self, ttk):
+        """A "Version" tab after Description, Changes and Requirements: where the selected mod
+        comes from, what it was built from, and whether GitHub has something newer."""
+        tk, C, FONT = self.tk, self.C, self.FONT
+        desc = self.lw.d_text.get('Description')
+        if desc is None:
+            return
+        nb = self.root.nametowidget(desc.winfo_parent()).master    # Text -> its frame -> the Notebook
+        f = ttk.Frame(nb, style='Panel.TFrame', padding=(0, 8))
+        t = tk.Text(f, wrap='word', relief='flat', bg=C['panel'], fg=C['text'], font=(FONT, 9),
+                    highlightthickness=0, padx=4, pady=4, cursor='arrow', height=8)
+        for tag, opts in (('h', dict(font=(FONT, 9, 'bold'), foreground=C['accent2'], spacing1=6)),
+                          ('m', dict(foreground=C['muted'])), ('ok', dict(foreground=C['ok'])),
+                          ('warn', dict(foreground=C['warn'])), ('bad', dict(foreground=C['bad']))):
+            t.tag_configure(tag, **opts)
+        row = tk.Frame(f, background=C['panel'])
+        row.pack(side='bottom', fill='x', pady=(6, 0))
+        self.v_btn = ttk.Button(row, text='Check for updates', style='Flat.TButton', command=self._version_button)
+        self.v_btn.pack(side='left')
+        t.pack(fill='both', expand=True)
+        t.configure(state='disabled')
+        nb.add(f, text='Version')
+        self.lw.d_text['Version'] = t
+        shown = self.lw.show_details
+
+        def show_details(*a, **k):
+            shown(*a, **k)
+            self.show_version()
+        self.lw.show_details = show_details
+        self.lw.tree.bind('<<TreeviewSelect>>', lambda e: self.show_version(), add='+')
+
+    def show_version(self):
+        t = self.lw.d_text.get('Version')
+        sel = self.lw.tree.selection()
+        if t is None or not sel:
+            return
+        d = self.lw.descs.get(sel[0], {})
+        path = d.get('path', sel[0])
+        ver = d.get('version') or '?'
+        proj = project_of(path)
+        if proj is None:
+            newer = sorted((x.get('version', ''), q) for q, x in self.lw.descs.items()
+                           if q != path and x.get('id') == d.get('id') and project_of(q))
+            out = [('Installed by hand: not kept up to date\n', 'warn' if newer else 'h')]
+            if newer:
+                out += [('A kept-up-to-date copy is listed too (%s). Uninstall this one.\n' % newer[-1][0], 'warn')]
+            out += [('\nVersion %s, in your library:\n%s\n' % (ver, path), 'm')]
+            self.v_btn.configure(text='Check for updates')
+            return self._write(t, out)
+        src = dict((n, q) for n, q, _ in PROJECTS)[proj]
+        _, built = git(src, 'log', '-1', '--format=%h %cs %s')
+        st = self.state.get(proj)
+        if self.busy:
+            out = [('Checking GitHub...\n', 'm')]
+        elif st is None:
+            out = [('Not checked yet\n', 'm')]
+        elif st.get('error'):
+            out = [('%s\n' % st['error'].capitalize(), 'warn')]
+        elif st.get('behind'):
+            n = st['behind']
+            out = [('Update available: %d new commit%s on GitHub\n' % (n, '' if n == 1 else 's'), 'warn'),
+                   ('latest: %s\n' % st['latest'][:90], 'm')]
+        else:
+            out = [('Up to date\n', 'ok')]
+        if self.checked_at and not self.busy:
+            out += [('checked at %s\n' % self.checked_at, 'm')]
+        out += [('\nVersion %s, built from %s\n' % (ver, proj), 'h'), ('%s\n' % (built[:90] or '?'), 'm'),
+                ('%s\n' % URLS.get(proj, ''), 'm')]
+        self.v_btn.configure(text='Update now' if st and st.get('behind') else 'Check for updates')
+        self._write(t, out)
+
+    def _write(self, t, parts):
+        t.configure(state='normal')
+        t.delete('1.0', 'end')
+        for text, tag in parts:
+            t.insert('end', text, tag)
+        t.configure(state='disabled')
+
+    def _version_button(self):
+        if self.v_btn.cget('text') == 'Update now':
+            self.update()
+        else:
+            self.check()
 
     def _poll(self):
         try:
@@ -164,13 +270,22 @@ class Updates:
             return
         self.busy = True
         self.btn.state(['disabled'])
+        self.v_btn.state(['disabled'])
         self.status.configure(text='Checking...', fg=self.C['muted'])
+        self.show_version()
         self._bg(check_updates, lambda r: self._checked(r, auto))
 
-    def _checked(self, found, auto):
+    def _checked(self, r, auto):
         from tkinter import messagebox
         self.busy = False
         self.btn.state(['!disabled'])
+        self.v_btn.state(['!disabled'])
+        if not isinstance(r, Exception):
+            found, self.state = r
+            self.checked_at = time.strftime('%H:%M')
+            self.show_version()
+        else:
+            found = r
         if isinstance(found, Exception):
             self.status.configure(text='Could not check')
             if not auto:
@@ -201,7 +316,8 @@ class Updates:
         tk = self.tk
         self.busy = True
         self.btn.state(['disabled'])
-        self.status.configure(text='Updating...')
+        self.v_btn.state(['disabled'])
+        self.status.configure(text='Updating...', fg=self.C['muted'])
         self.before = (head(ROOT), head(ELEK))
         w = tk.Toplevel(self.root)
         w.title('elekloader: updating')
@@ -229,6 +345,7 @@ class Updates:
         from tkinter import messagebox
         self.busy = False
         self.btn.state(['!disabled'])
+        self.v_btn.state(['!disabled'])
         if rc:
             self.status.configure(text='Update failed')
             messagebox.showerror('elekloader', 'The update failed: the window shows why (the logs are in %s).'
@@ -241,7 +358,9 @@ class Updates:
             except OSError as e:
                 note = 'Could not copy the mods to your Elektron folder: %s' % e
         self.lw.refresh()
-        self.status.configure(text='Updated')
+        self.state = {n: dict(v, behind=0) for n, v in self.state.items() if not v.get('error')}
+        self.show_version()
+        self.status.configure(text='Updated', fg=self.C['ok'])
         if note:
             self._line('\n' + note + '\n')
         if (head(ROOT), head(ELEK)) != self.before:

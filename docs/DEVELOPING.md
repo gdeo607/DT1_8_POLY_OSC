@@ -32,6 +32,10 @@ That makes `elekloader.app` in the Elektron folder. It also moves older elekload
   time, it asks for your official `Digitakt_OS1.53.syx`, and remembers it.
 - **When it opens, it checks GitHub** for new versions of elekloader, digi1_mods and the mods, and
   offers to update. **Check for updates** (top, next to the title) does the same at any time.
+- **The Version tab** (next to Description, Changes, Requirements) says, for the selected mod, whether
+  GitHub has something newer, which commit it was built from and where it comes from, with an
+  **Update now** button. For a copy you installed by hand it says so, and whether a kept-up-to-date
+  copy of the same mod is listed too.
 - **Updating** fetches them, builds every mod from your OS file, lists the new mods in the window, puts
   them in `Digitakt 1/0_Latest_Mods`, and moves the previous ones to `Digitakt 1/4_bin/mods_<date>`.
   When elekloader itself changed, it offers to restart into the new version.

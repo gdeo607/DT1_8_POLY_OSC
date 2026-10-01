@@ -9,8 +9,10 @@
 #   tools/dev.sh play                      open digiemu's window (play the build with mouse and keys)
 #   tools/dev.sh all [mods...]             test, build, emu, emutest: run this after every change
 #
-# Mods for build/all: digimono (this repo), digisophie, digislicer (fetched by setup), digiutils,
-# digimatrix, digieq (this repo). digipoly needs core 2.0a and is not built here.
+# Mods for build/all: digimono, digiutils, digimatrix, digieq (this repo); digisophie, digislicer,
+# digifilter, digineighbor (fetched by setup). digipoly needs core 2.0a and is not built here.
+# Not every pair combines: digisophie / digineighbor / digislicer clash with each other (elekloader
+# says which); digimono combines with each of them.
 #
 # Settings (environment):
 #   STOCK=path/to/Digitakt_OS1.53.syx      required: your own official file (never committed)
@@ -38,6 +40,10 @@ DIGIEMU_REV=3206402661923d94f22a586ce7e971b263f70c6a
 DIGISOPHIE_URL=https://github.com/soejrd/digisophie
 DIGISOPHIE_REV=ef8998195030904641648f71e86612477833a0a5
 DIGISLICER_URL=https://github.com/irpina/digislicer
+DIGIFILTER_URL=https://github.com/DigiAlchemydsp/DigiFilter
+DIGIFILTER_REV=dee3f93cc3f79f333d02a4cc119eb6f19f3d6068
+DIGINEIGHBOR_URL=https://github.com/irpina/digineighbor
+DIGINEIGHBOR_REV=83c34deefbee38a2ac6309d725a5359f324de557
 
 say() { printf '\n== %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -86,6 +92,8 @@ cmd_setup() {
     fetch digiemu "$DIGIEMU_URL" "$DIGIEMU_REV"
     fetch digisophie "$DIGISOPHIE_URL" "$DIGISOPHIE_REV"
     fetch digislicer "$DIGISLICER_URL" ""
+    fetch digifilter "$DIGIFILTER_URL" "$DIGIFILTER_REV"
+    fetch digineighbor "$DIGINEIGHBOR_URL" "$DIGINEIGHBOR_REV"
     say "digiemu: Python environment and the patched Unicorn (a few minutes, once)"
     (cd "$TOOLS/digiemu" && uv sync -q && tools/install-patched-unicorn.sh > "$LOG/unicorn.log" 2>&1) \
         || die "patched Unicorn failed: see $LOG/unicorn.log"
@@ -134,6 +142,8 @@ cmd_build() {
             digimono) files+=("$(build_one digimono "$ROOT/mods/digimono")") ;;
             digisophie) files+=("$(build_one digisophie "$TOOLS/digisophie")") ;;
             digislicer) files+=("$(build_one digislicer "$TOOLS/digislicer")") ;;
+            digifilter) files+=("$(build_one digifilter "$TOOLS/digifilter")") ;;
+            digineighbor) files+=("$(build_one digineighbor "$TOOLS/digineighbor")") ;;
             digiutils|digimatrix|digieq)
                 PYTHONPATH=$TOOLS/elekloader python3 "$ROOT/tools/build_elemods.py" --stock "$STOCK" \
                     --elekloader "$TOOLS/elekloader" --out "$BUILD/mods" --mods "$m" > "$LOG/build-$m.log" 2>&1 \
@@ -181,6 +191,7 @@ cmd_emutest() {
     [[ -n $fw ]] || die "the last build is not in digiemu yet: tools/dev.sh emu"
     grep -q digisophie "$BUILD/last.mods" && before=$((before + 1))
     grep -q digislicer "$BUILD/last.mods" && before=$((before + 1))
+    grep -q digineighbor "$BUILD/last.mods" && before=$((before + 1))
     local mods=()
     while IFS= read -r line; do mods+=("$line"); done < "$BUILD/last.mods"   # (bash 3.2 has no mapfile)
     local ok=1

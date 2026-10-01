@@ -217,6 +217,23 @@ wrappers reach it. Checked:
   `--menu-before 1`, as SOPHIE is listed first), SOPHIE's own SRC page shows its knobs, and a SOPHIE
   track sounds.
 
+## Other mods (checked with `elekloader.patch --check`, 2026-10-01)
+
+| mod | what | with Digi Mono |
+|---|---|---|
+| digisophie 0.1.7 | SOPHIE percussion machine (id 7) | combines; checked in digiemu |
+| digineighbor 0.6 (irpina) | NEIGHBOR machine (id 4) | combines; does not combine with digisophie (same SRC page entries) |
+| DigiFilter 1.0i (DigiAlchemydsp) | filter TYPEs BP, BP2, COMB, TRASH | combines, also with digisophie or digineighbor |
+| digislicer 2.0 | DIGISLICER machine (id 5) | combines; does not combine with digisophie (same range callers) |
+| digiutils, digimatrix, digieq (this repo) | | combine |
+| Digi Poly 1.0f (this repo) | POLY (id 4, core 2.0a) | does not combine (core 2.1's machine sites) |
+| RingTone (DigiAlchemydsp) | master FX for the **Digitone** mk1 | another device: not applicable |
+
+DigiFilter's notes place the stock per-voice filter: `0x40072844(params, buffer, active, voice)`, called
+at 0x400780c4 for each voice on `0x80001a18 + 128 v` in place, after Digi Mono's block is written. So
+DigiFilter's types should also act on Digi Mono tracks. The filter envelope's level per voice is at
+0x4199df58 + 12 v (the stage 0x40073304); FREQ is params + 2.
+
 ## Known limits
 
 - **Not run on a unit.** Only emulation so far (digiemu).

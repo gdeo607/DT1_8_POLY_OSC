@@ -39,7 +39,7 @@ tools/dev.sh setup
 
 - **checks the tools** listed above;
 - **fetches the helper projects** into `out/dev/tools/`: elekloader (the mod loader that builds the OS
-  file), digiemu (the emulator), digisophie and digislicer, at the versions everything was checked with;
+  file), digiemu (the emulator), digisophie, digislicer, DigiFilter and digineighbor, at the versions everything was checked with;
 - **builds digiemu's patched Unicorn** (the CPU emulator; a few minutes);
 - **boots your official OS** once in digiemu (about a minute).
 
@@ -47,7 +47,7 @@ tools/dev.sh setup
 
 ```sh
 tools/dev.sh all                       # Digi Mono alone
-tools/dev.sh all digimono digisophie   # or with other mods: digisophie digislicer digiutils digimatrix digieq
+tools/dev.sh all digimono digisophie   # or with other mods: digisophie digineighbor digislicer digifilter digiutils digimatrix digieq
 ```
 
 `all` runs the four steps below and stops at the first failure, naming its log in `out/dev/log/`.

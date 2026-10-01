@@ -144,7 +144,7 @@ One page, one band per column (bands 1-4 = knobs A/E, B/F, C/G, D/H):
   after a while.
 - A band at 0 dB (bell/shelf) costs nothing; four active bands cost about 5 % of the audio time (see RISKS.md).
 
-## Digi Mono (elekloader mod `digimono`, 0.7; needs digichain, ticked with it)
+## Digi Mono (elekloader mod `digimono`, 0.8; needs digichain, ticked with it)
 - **Pick a machine:** FUNC+SRC on an audio track, then scroll past SLICE (and past any other mod's machines):
   MONO SIN, MONO NOISE, MONO SAW, MONO PULSE, MONO ENS, MONO VO. YES to confirm. The track needs no sample.
 - **Play it:** from trigs, the track key, the keyboard (FUNC+TRK) or MIDI, like a sample track. The note

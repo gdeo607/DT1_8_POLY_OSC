@@ -175,7 +175,17 @@ plays. The stock render is about 84,000 a block.
 | MONO SAW at its defaults | ~2,400 |
 | MONO SAW, every oscillator on | ~5,900 |
 | MONO ENS with the chorus | ~6,600 |
+| MONO VO (0.8), a vowel | ~3,000 (0.7: ~4,400 instructions, ~12,300 cycles with its divides) |
+| MONO VO (0.8), while a consonant sounds | ~6,400 at most |
 | a Digi Mono track not playing | ~100 |
+
+**MONO VO (0.8)** was the heaviest by far in cycles: two divides a sample (about 35 cycles each on the
+ColdFire) for the consonant's fade-in and decay, and its three formant filters' state loaded and stored
+through the voice on every sample. Now the vowel (source, breath, formants) runs at 24 kHz, every other
+sample, with the output interpolated between (everything it makes is under 4 kHz; above 12 kHz the output
+is at most 48 dB under the voice); the consonant (S at 6 kHz) still runs at 48 kHz, only while it lasts;
+the ramps are running sums; the state is in locals for the block. An estimate of ColdFire cycles a voice
+a block (instruction kinds weighted: divide 35, multiply 4, load 2): a vowel ~4,400 (was ~12,300).
 
 Each playing Digi Mono voice adds 3-8 % to the render. The render already runs at about 80 % (72 % with
 FAST AUDIO), so **two to four Digi Mono tracks playing at once is the safe range until it is measured on
@@ -185,7 +195,7 @@ a unit** with digihealth's SYSTEM INFO. Eight heavy ones would overload it. Ways
   ColdFire loop should need about 9;
 - **the `.fast` section:** placing the inner loops in on-chip SRAM, as FAST AUDIO does with the stock
   render;
-- **skipping silent voices:** not rendering a voice whose amp envelope has closed (the envelope is applied
+- **skipping silent voices** (done in 0.7): not rendering a voice whose amp envelope has closed (the envelope is applied
   after the filter stage and has not been located yet).
 
 ## The Digitakt's pages on a Digi Mono track (0.5, tests/digiemu_mono_fx.py)

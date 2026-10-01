@@ -447,6 +447,15 @@ static int32_t svf_f(int32_t hz)
     return a + (((b - a) * fr) >> 8);                      /* sin in Q15 = 2 sin in Q14 */
 }
 
+/* The same at 24 kHz, where VO's vowel runs: hz * 512 / 48000 */
+static int32_t svf_f24(int32_t hz)
+{
+    int32_t pos = (hz * 2796) >> 10;
+    int32_t i = pos >> 8, fr = pos & 255;
+    int32_t a = MONO_SINE[i], b = MONO_SINE[i + 1];
+    return a + (((b - a) * fr) >> 8);
+}
+
 static void render_vo(struct mono_voice *v, const uint8_t *p, uint32_t inc, int16_t *out, int n)
 {
     int32_t fk[3], qk[3], gk[3], k, cf = 0, cq = 0, cg, lenc, age0, pos1, pos2, pos, m, breath;
@@ -471,7 +480,7 @@ static void render_vo(struct mono_voice *v, const uint8_t *p, uint32_t inc, int1
             fr = 256;
         }
         hz = VOWEL[i][k] + (((VOWEL[i + 1][k] - VOWEL[i][k]) * fr) >> 8);
-        fk[k] = svf_f(hz);
+        fk[k] = svf_f24(hz);                                /* the vowel runs at 24 kHz */
         qk[k] = (VBW[k] << 14) / hz;                        /* 1 / Q, Q14 */
         gk[k] = VAMP[k];
     }
@@ -486,37 +495,101 @@ static void render_vo(struct mono_voice *v, const uint8_t *p, uint32_t inc, int1
     cg = MONO_GAIN[p[6]];
     breath = MONO_GAIN[p[3]];
     age0 = (int32_t)(v->age > 0x7fffffff ? 0x7fffffff : v->age);
-    while (n--) {
-        int32_t s, x, acc = 0, venv;
-        /* source: saw, softened, breath mixed in */
-        s = saw(ph >> 16, dt);
-        ph += inc;
-        v->glp += (s - v->glp) >> 2;                        /* about 1.9 kHz, one pole */
-        s = v->glp;
-        if (breath)
-            s += (((((int32_t)rnd(v) >> 16) - s) >> 1) * breath) >> 14;
-        /* the vowel fades in under the consonant: over its first half */
-        venv = 32767;
-        if (ct && age0 < (lenc >> 1))
-            venv = age0 * 32767 / ((lenc >> 1) + 1);      /* age0 < 9648: fits */
-        for (k = 0; k < 3; k++) {
-            int32_t in = (s * qk[k]) >> 14, hp;
-            v->f_lo[k] += (fk[k] * v->f_bp[k]) >> 14;
-            hp = in - v->f_lo[k] - ((qk[k] * v->f_bp[k]) >> 14);
-            v->f_bp[k] += (fk[k] * hp) >> 14;
-            acc += (v->f_bp[k] * gk[k]) >> 14;
+    {
+        /* The vowel (source, breath, three formants) runs at 24 kHz, every other output sample: everything
+         * it makes is under 4 kHz. Between, the output is the line from the last 24 kHz sample to the new
+         * one (ph[1] holds the last; bit 0 of pad, which sample of the pair is next: VO uses neither
+         * otherwise). The consonant, up to 6 kHz, runs at 48 kHz while it lasts. The loop keeps the state
+         * in locals; the consonant's fade-in and decay are ramps with a step worked out once a block; the
+         * formant levels (VAMP: 1, 1/2, 1/4) are shifts. */
+        int32_t lo0 = v->f_lo[0], lo1 = v->f_lo[1], lo2 = v->f_lo[2];
+        int32_t bp0 = v->f_bp[0], bp1 = v->f_bp[1], bp2 = v->f_bp[2];
+        int32_t glp = v->glp;
+        const int32_t f0 = fk[0], f1 = fk[1], f2 = fk[2], q0 = qk[0], q1 = qk[1], q2 = qk[2];
+        int32_t half = lenc >> 1, vstep = 0, einv = 0, yh, last;
+        uint32_t r = v->rng, inc2 = inc > 0x3fffffffu ? 0x7fffffffu : inc << 1, dt2 = inc2 >> 16;
+        int par;
+        (void)gk;
+        (void)dt;
+        if (v->age == 0) {                                  /* a new note: the pair starts afresh */
+            v->ph[1] = 0;
+            v->pad = 0;
         }
-        x = (acc * (venv >> 1)) >> 13;                      /* x2 make-up with the fade */
-        if (ct && age0 < lenc) {                            /* the consonant: a noise band, decaying */
-            int32_t nz = ((int32_t)rnd(v) >> 17), hp, e = ((lenc - age0) << 15) / lenc;
-            int32_t in = (nz * cq) >> 14;
-            v->c_lo += (cf * v->c_bp) >> 14;
-            hp = in - v->c_lo - ((cq * v->c_bp) >> 14);
-            v->c_bp += (cf * hp) >> 14;
-            x += (((v->c_bp * e) >> 15) * cg) >> 14;        /* x2: the band's level is its q's */
+        last = (int32_t)v->ph[1];
+        par = v->pad & 1;
+        yh = last;
+        if (ct) {
+            vstep = (32767 << 8) / (half + 1);              /* venv = age0 x 32767 / (half + 1), Q8 */
+            einv = (1 << 23) / lenc;                        /* e = (lenc - age0) << 15 / lenc, Q8 */
         }
-        *out++ = sat16(x);
-        age0 = age0 < 0x7fffffff ? age0 + 1 : age0;
+/* one output sample of the vowel into y: a new 24 kHz sample on the first of a pair, else the held one */
+#define VO_VOWEL(y) do {                                                                \
+            if (!par) {                                                                 \
+                int32_t s_, hp_;                                                        \
+                s_ = saw(ph >> 16, dt2);                                                \
+                ph += inc2;                                                             \
+                glp += ((s_ - glp) * 7) >> 4;               /* about 2 kHz, one pole */ \
+                s_ = glp;                                                               \
+                if (breath) {                                                           \
+                    r ^= r << 13; r ^= r >> 17; r ^= r << 5;                            \
+                    s_ += (((((int32_t)r >> 16) - s_) >> 1) * breath) >> 14;            \
+                }                                                                       \
+                lo0 += (f0 * bp0) >> 14;                                                \
+                hp_ = ((s_ * q0) >> 14) - lo0 - ((q0 * bp0) >> 14);                     \
+                bp0 += (f0 * hp_) >> 14;                                                \
+                lo1 += (f1 * bp1) >> 14;                                                \
+                hp_ = ((s_ * q1) >> 14) - lo1 - ((q1 * bp1) >> 14);                     \
+                bp1 += (f1 * hp_) >> 14;                                                \
+                lo2 += (f2 * bp2) >> 14;                                                \
+                hp_ = ((s_ * q2) >> 14) - lo2 - ((q2 * bp2) >> 14);                     \
+                bp2 += (f2 * hp_) >> 14;                                                \
+                yh = bp0 + (bp1 >> 1) + (bp2 >> 2);                                     \
+                y = (last + yh) >> 1;                       /* halfway from the last */ \
+                last = yh;                                                              \
+            } else {                                                                    \
+                y = yh;                                                                 \
+            }                                                                           \
+            par ^= 1;                                                                   \
+        } while (0)
+        if (ct && age0 < lenc) {
+            /* while the consonant lasts: the vowel fades in over its first half under a noise band at
+             * 48 kHz that decays; both ramps are running sums, Q8 */
+            int32_t clo = v->c_lo, cbp = v->c_bp;
+            int32_t va = age0 * vstep, ea = (lenc - age0) * einv;
+            while (n && age0 < lenc) {
+                int32_t y, x, nz, hp, venv = age0 < half ? va >> 8 : 32767;
+                VO_VOWEL(y);
+                x = (y * (venv >> 1)) >> 13;                /* x2 make-up with the fade */
+                r ^= r << 13; r ^= r >> 17; r ^= r << 5;
+                nz = (int32_t)r >> 17;
+                clo += (cf * cbp) >> 14;
+                hp = ((nz * cq) >> 14) - clo - ((cq * cbp) >> 14);
+                cbp += (cf * hp) >> 14;
+                x += (((cbp * (ea >> 8)) >> 15) * cg) >> 14;    /* x2: the band's level is its q's */
+                *out++ = sat16(x);
+                va += vstep;
+                ea -= einv;
+                age0++;
+                n--;
+            }
+            v->c_lo = clo;
+            v->c_bp = cbp;
+        }
+        if (n > 0) {                                        /* the vowel alone */
+            int32_t rest = n;
+            while (n--) {
+                int32_t y;
+                VO_VOWEL(y);
+                *out++ = sat16((y * 16383) >> 13);
+            }
+            age0 = age0 > 0x7fffffff - rest ? 0x7fffffff : age0 + rest;
+        }
+#undef VO_VOWEL
+        v->f_lo[0] = lo0; v->f_lo[1] = lo1; v->f_lo[2] = lo2;
+        v->f_bp[0] = bp0; v->f_bp[1] = bp1; v->f_bp[2] = bp2;
+        v->glp = glp; v->rng = r;
+        v->ph[1] = (uint32_t)last;
+        v->pad = (uint8_t)par;
     }
     v->ph[0] = ph;
     v->age = (uint32_t)age0;

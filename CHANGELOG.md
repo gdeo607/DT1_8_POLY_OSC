@@ -3,6 +3,15 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## Digi Mono 0.8 (HW: not yet)
+- **MONO VO about three times lighter:** an estimated ~4,400 ColdFire cycles a voice a block for a vowel
+  (was ~12,300), ~7,100 while a consonant sounds. The vowel runs at 24 kHz (its formants are all under
+  4 kHz), the consonant at 48 kHz while it lasts; no divides a sample; the filters' state stays in
+  registers. The sound: the same formants and levels (every band to 12 kHz within 1 dB); above 12 kHz it
+  is at most 48 dB under the voice.
+- Checked: the engine's signal tests (formants, consonants), ColdFire = PC bit for bit, and in digiemu
+  every block of a VO voice equal to the engine's.
+
 ## Digi Mono 0.7, digichain 1.1 (HW: not yet)
 - **The SRC page says what each knob does.** Every knob a machine has gets its name, a plain round knob
   (not ONESHOT's PLAY, SAMP or LEV controls under it) and its value in its units: voices, semitones, duty %,

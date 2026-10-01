@@ -326,7 +326,7 @@ cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs com
         for ((j = i + 1; j < ${#ok[@]}; j++)); do
             a=${ok[i]}; b=${ok[j]}
             with=(--mod "$core")
-            if [[ -n $chain && $a$b == *-chain.elemod* && $a != "$chain" && $b != "$chain" ]]; then
+            if [[ -n $chain && ( $a$b == *-chain.elemod* || $a$b == */digimono-* ) && $a != "$chain" && $b != "$chain" ]]; then
                 with+=(--mod "$chain")
             fi
             if PYTHONPATH=$TOOLS/elekloader python3 -m elekloader.patch --stock "$STOCK" "${with[@]}" \

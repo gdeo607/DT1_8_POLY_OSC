@@ -12,6 +12,10 @@
   launcher changed, it offers to restart into the new version.
 - With ELEKTRON_DIR set (the folder holding "Digitakt 1"), each update also puts the new .elemod
   files in "Digitakt 1/0_Latest_Mods" and moves the previous ones to "Digitakt 1/4_bin/mods_<date>".
+- At launch and after each update, copies of these mods installed by hand into elekloader's library
+  (~/.elekloader/mods) are moved out ("Digitakt 1/4_bin/library_<date>", else ~/.elekloader/old_mods_<date>):
+  the library is listed first and an old copy there, still ticked, would be built instead of the new one
+  (an old digichain, for instance, leaves Digi Mono without its menu icons).
 
 The stock OS file is the one chosen in the window (elekloader remembers it). Nothing here writes to
 your unit.
@@ -114,6 +118,30 @@ def mirror(elektron):
     for p in new:
         shutil.copy2(p, dst)
     return line
+
+
+def mod_id(path):
+    """'digimono' for digimono-0.9.elemod (ids have no '-')."""
+    return os.path.basename(path).split('-')[0].lower()
+
+
+def prune_library(library):
+    """Move the library's copies of the mods built here (any version) out of it.
+    -> a line saying what happened, or None."""
+    ours = {mod_id(p) for p in glob.glob(os.path.join(ELEMODS, '*.elemod'))}
+    stale = [p for p in sorted(glob.glob(os.path.join(library, '*.elemod'))) if mod_id(p) in ours]
+    if not stale:
+        return None
+    stamp = time.strftime('%Y-%m-%d_%H%M')
+    dt1 = next((d for d in sorted(glob.glob(os.path.join(os.environ.get('ELEKTRON_DIR', '/nonexistent'),
+                                                        'Digitakt 1*'))) if os.path.isdir(d)), None)
+    arch = (os.path.join(dt1, '4_bin', 'library_' + stamp) if dt1
+            else os.path.join(os.path.dirname(library), 'old_mods_' + stamp))
+    os.makedirs(arch, exist_ok=True)
+    for p in stale:
+        shutil.move(p, os.path.join(arch, os.path.basename(p)))
+    return ('Moved %d old copies installed by hand (%s) out of the library, to %s: the kept-up-to-date ones '
+            'are used instead.' % (len(stale), ', '.join(os.path.basename(p) for p in stale), arch))
 
 
 def single_instance():
@@ -362,6 +390,12 @@ class Updates:
                 note = mirror(os.environ['ELEKTRON_DIR']) or ''
             except OSError as e:
                 note = 'Could not copy the mods to your Elektron folder: %s' % e
+        try:
+            pruned = prune_library(self.lw.model.library)
+        except OSError as e:
+            pruned = 'Could not tidy the library: %s' % e
+        if pruned:
+            note = (note + '\n\n' + pruned).strip()
         self.lw.refresh()
         self.state = {n: dict(v, behind=0) for n, v in self.state.items() if not v.get('error')}
         self.show_version()
@@ -397,9 +431,15 @@ def main():
     from elekloader import gui
     also = ([gui.BUNDLED] if os.path.isdir(gui.BUNDLED) else []) + [ELEMODS]
     os.makedirs(ELEMODS, exist_ok=True)
+    try:
+        pruned = prune_library(gui.LIBRARY)
+    except OSError as e:
+        pruned = 'Could not tidy the library: %s' % e
     root = tk.Tk()
     lw = gui.LoaderWindow(root, gui.LoaderModel(None, gui.LIBRARY, also))
     up = Updates(lw, root)
+    if pruned:
+        root.after(800, lambda: messagebox.showinfo('elekloader', pruned, parent=root))
     root.after(1500, lambda: up.check(auto=True))
     root.mainloop()
 

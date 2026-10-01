@@ -3,6 +3,15 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## elekloader app: old library copies (tools)
+- **Old hand-installed copies no longer win over the updated mods.** elekloader lists its own library
+  (~/.elekloader/mods) first; an old digichain or digimono installed there by hand, still ticked, was built
+  instead of the new one (an old digichain leaves Digi Mono, SOPHIE and DIGISLICER without menu icons). At
+  launch and after each update the app moves those copies to "Digitakt 1/4_bin/library_<date>".
+- Checked: the full set (core, digichain 1.3, Digi Mono 0.9, SOPHIE and NEIGHBOR chained, digieq, DigiFilter,
+  digihealth, digimatrix, digiutils) shows every added machine's icon in digiemu.
+- `dev.sh elemods`: Digi Mono's pairs are checked with digichain (it requires it), no more false CLASHes.
+
 ## digichain 1.3 (HW: not yet)
 - **NEIGHBOR plays when you pick it.** A new NEIGHBOR track takes the track on its left as its source
   (track 2 for track 1) once it has been NEIGHBOR for half a second; before, SLOT started at 0, silence.

@@ -221,8 +221,9 @@ FETCHED=(elekloader digiemu digisophie digislicer digifilter digineighbor)
 
 cmd_update() {   # [projects...] the latest of each fetched project (instead of the pinned versions)
     say "pulling the latest elekloader, digiemu and mods"
-    local d b
-    for d in "${@:-${FETCHED[@]}}"; do
+    local d b list=("$@")
+    [[ $# -gt 0 ]] || list=("${FETCHED[@]}")
+    for d in "${list[@]}"; do
         [[ -d $TOOLS/$d/.git ]] || { echo "  $d: not fetched (run setup)"; continue; }
         b=$(git -C "$TOOLS/$d" remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p')
         git -C "$TOOLS/$d" fetch -q origin && git -C "$TOOLS/$d" checkout -q "origin/${b:-main}" \

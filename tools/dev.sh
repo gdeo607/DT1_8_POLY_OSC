@@ -19,7 +19,9 @@
 #
 # Mods for build/all: digimono, digiutils, digimatrix, digieq (this repo); digisophie, digislicer,
 # digifilter, digineighbor, digihealth (fetched by setup). digipoly needs core 2.0a and is not built here.
-# Not every pair combines: digisophie clashes with digislicer and with digineighbor (elekloader says
+# digisophie, digineighbor and digislicer are built for digichain (tools/chain_patch.py; CHAIN=0 builds
+# them as they are), so they combine with each other; digichain is added to a build that needs it.
+# Without it digisophie clashes with digislicer and with digineighbor (elekloader says
 # where; `elemods` writes the full table); digimono combines with all of them.
 #
 # Settings (environment):
@@ -134,6 +136,14 @@ build_one() {   # build_one NAME SOURCEDIR -> echo the .elemod
     local stage=$BUILD/mods/$1
     rm -rf "$stage"
     cp -r "$2" "$stage"
+    rm -rf "$stage/.git" "$stage/out"
+    case $1 in
+        digisophie|digineighbor|digislicer)   # their shared sites go to digichain (tools/chain_patch.py)
+            if [[ ${CHAIN:-1} != 0 ]]; then
+                python3 "$ROOT/tools/chain_patch.py" "$stage" > "$LOG/chain-$1.log" 2>&1 \
+                    || echo "  $1: $(tail -1 "$LOG/chain-$1.log")" >&2
+            fi ;;
+    esac
     if [[ $1 == digihealth ]]; then   # its own build.py: FAST AUDIO's parts are worked out from the stock file
         (cd "$stage" && PYTHONPATH=$TOOLS/elekloader python3 build.py --stock "$STOCK" --out "$stage/out") \
             > "$LOG/build-$1.log" 2>&1 || die "$1 failed to build: $LOG/build-$1.log"
@@ -155,7 +165,7 @@ cmd_build() {
     files+=("$(build_one core "$TOOLS/elekloader/mods/core")")
     for m in "${mods[@]}"; do
         case $m in
-            digimono) files+=("$(build_one digimono "$ROOT/mods/digimono")") ;;
+            digimono|digichain) files+=("$(build_one "$m" "$ROOT/mods/$m")") ;;
             digisophie) files+=("$(build_one digisophie "$TOOLS/digisophie")") ;;
             digislicer) files+=("$(build_one digislicer "$TOOLS/digislicer")") ;;
             digifilter) files+=("$(build_one digifilter "$TOOLS/digifilter")") ;;
@@ -169,6 +179,9 @@ cmd_build() {
             *) die "unknown mod: $m" ;;
         esac
     done
+    if printf '%s\n' "${files[@]}" | grep -q -- '-chain\.elemod$' && ! printf '%s\n' "${mods[@]}" | grep -qx digichain; then
+        files+=("$(build_one digichain "$ROOT/mods/digichain")")   # what the chained builds need
+    fi
     for f in "${files[@]}"; do echo "  $(basename "$f")"; done
     say "lint, combine, write the OS"
     local args=() name
@@ -224,7 +237,7 @@ cmd_emutest() {
     say "every machine passed; recordings in $LOG/MONO_*.wav, screens in $LOG/png_*"
 }
 
-ELEMOD_ALL=(digimono digiutils digimatrix digieq digisophie digislicer digifilter digineighbor digihealth)
+ELEMOD_ALL=(digimono digichain digiutils digimatrix digieq digisophie digislicer digifilter digineighbor digihealth)
 
 FETCHED=(elekloader digiemu digisophie digislicer digifilter digineighbor digihealth)
 
@@ -292,8 +305,8 @@ cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs com
     local ok=() m f
     for m in "${ELEMOD_ALL[@]}"; do
         case $m in
-            digimono) f=$(build_one digimono "$ROOT/mods/digimono") \
-                || { echo "  digimono: FAILED (see $LOG/build-digimono.log)"; continue; } ;;
+            digimono|digichain) f=$(build_one "$m" "$ROOT/mods/$m") \
+                || { echo "  $m: FAILED (see $LOG/build-$m.log)"; continue; } ;;
             digiutils|digimatrix|digieq)
                 PYTHONPATH=$TOOLS/elekloader python3 "$ROOT/tools/build_elemods.py" --stock "$STOCK" \
                     --elekloader "$TOOLS/elekloader" --out "$BUILD/mods" --mods "$m" > "$LOG/build-$m.log" 2>&1 \
@@ -304,23 +317,31 @@ cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs com
         esac
         cp "$f" "$out/" && ok+=("$out/$(basename "$f")") && echo "  $(basename "$f")"
     done
-    say "which pairs combine (elekloader --check, with core)"
-    local core i j a b
+    say "which pairs combine (elekloader --check, with core, and digichain for the chained builds)"
+    local core chain i j a b with
     core=$(ls "$out"/core-*.elemod)
+    chain=$(ls "$out"/digichain-*.elemod 2>/dev/null | head -1 || true)
     : > "$out/COMPATIBILITY.txt"
     for ((i = 0; i < ${#ok[@]}; i++)); do
         for ((j = i + 1; j < ${#ok[@]}; j++)); do
             a=${ok[i]}; b=${ok[j]}
-            if PYTHONPATH=$TOOLS/elekloader python3 -m elekloader.patch --stock "$STOCK" --mod "$core" \
+            with=(--mod "$core")
+            if [[ -n $chain && $a$b == *-chain.elemod* && $a != "$chain" && $b != "$chain" ]]; then
+                with+=(--mod "$chain")
+            fi
+            if PYTHONPATH=$TOOLS/elekloader python3 -m elekloader.patch --stock "$STOCK" "${with[@]}" \
                     --mod "$a" --mod "$b" --check > "$LOG/pair.log" 2>&1; then
                 echo "ok      $(basename "$a") + $(basename "$b")" >> "$out/COMPATIBILITY.txt"
+            elif grep -q 'need RAM' "$LOG/pair.log"; then
+                echo "TOO BIG $(basename "$a") + $(basename "$b"): $(grep -o 'need RAM.*' "$LOG/pair.log" | head -1)" \
+                    >> "$out/COMPATIBILITY.txt"
             else
                 echo "CLASH   $(basename "$a") + $(basename "$b"): $(grep -E 'overlap|claim|both|conflict' "$LOG/pair.log" | head -1 | sed 's/^ *//')" \
                     >> "$out/COMPATIBILITY.txt"
             fi
         done
     done
-    grep CLASH "$out/COMPATIBILITY.txt" || echo "  every pair combines"
+    grep -E '^(CLASH|TOO BIG)' "$out/COMPATIBILITY.txt" || echo "  every pair combines"
     say "done: tools/dev.sh loader opens elekloader with them (or add them to the elekloader app; it has core built in)"
 }
 

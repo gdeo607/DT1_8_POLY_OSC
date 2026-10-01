@@ -1,0 +1,28 @@
+{
+ "id": "digichain", "version": "1.0",
+ "title": "digichain", "category": "Framework", "author": "gdeo607", "license": "MIT",
+ "description": "Lets SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) combine. Each of them patches the same SRC-page functions (knob labels, values, graphics, ranges) and the same render step; digichain owns those places once and passes each call to the mod whose machine it is for, or to the stock code. It needs the builds of those mods that tools/dev.sh makes for it (version ending in -chain), and changes nothing on its own.",
+ "device": "digitakt-mk1", "os": "1.53",
+ "sources": ["chain.s"],
+ "requires": ["core"],
+ "weak": ["ds_layout", "ds_lab_short", "ds_lab_long", "ds_val_text", "ds_knob_gfx", "ds_ui_rec", "ds_pop_text",
+          "ds_inject_s", "ds_prange", "ds_prange_f",
+          "nb_layout", "nb_lab_short", "nb_lab_long", "nb_val_text", "nb_knob_gfx", "nb_ui_rec", "nb_pop_text",
+          "nb_inject_s",
+          "dsl_prange", "dsl_prange_f"],
+ "sites": [
+  {"addr": "0x400657cc", "stock": "7203202f0004", "op": "jmp", "target": "digichain_layout"},
+  {"addr": "0x4000fe8a", "stock": "222f00080c81000000a4", "op": "jmp", "target": "digichain_lab_short"},
+  {"addr": "0x4000feac", "stock": "222f00080c81000000a4", "op": "jmp", "target": "digichain_lab_long"},
+  {"addr": "0x4000f324", "stock": "4fefffec48d70c1c", "op": "jmp", "target": "digichain_val_text"},
+  {"addr": "0x4000f2bc", "stock": "4fefffec48d7007c", "op": "jmp", "target": "digichain_knob_gfx"},
+  {"addr": "0x40065794", "stock": "222f00040c81000000a4", "op": "jmp", "target": "digichain_ui_rec"},
+  {"addr": "0x400657ee", "stock": "222f00040c81000000a4", "op": "jmp", "target": "digichain_pop_text"},
+  {"addr": "0x40077fba", "stock": "49f94199e444", "op": "jsr", "target": "digichain_inject"},
+  {"addr": "0x4000ff20", "stock": "4eb940078f0c", "op": "keep2", "target": "digichain_prange"},
+  {"addr": "0x400100c4", "stock": "4eb940078f0c", "op": "keep2", "target": "digichain_prange"},
+  {"addr": "0x4000f534", "stock": "4eb940078f0c", "op": "keep2", "target": "digichain_prange"},
+  {"addr": "0x4000f5fc", "stock": "45f940078f0c", "op": "keep2", "target": "digichain_prange_f"}
+ ],
+ "resources": {"names": ["param:SRC page hooks shared by SOPHIE, NEIGHBOR and DIGISLICER"]}
+}

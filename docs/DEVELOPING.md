@@ -122,8 +122,11 @@ tools/dev.sh elemods
 - **Your repo's mods:** digimono, digiutils, digimatrix and digieq.
 - **The others:** digisophie, digislicer, DigiFilter, digineighbor and digihealth.
 - **core:** the elekloader app has core built in.
-- **COMPATIBILITY.txt:** elekloader's check for every pair, `ok` or `CLASH` with the overlapping address.
-  On 2026-10-01 the only clashes were digisophie + digislicer and digisophie + digineighbor.
+- **COMPATIBILITY.txt:** elekloader's check for every pair: `ok`, `CLASH` with the overlapping address,
+  or `TOO BIG` when the two need more than the 128 KB of mod RAM. digisophie, digineighbor and
+  digislicer are built for digichain (`-chain` versions, mods/digichain/README.md), so they combine with
+  each other; on 2026-10-01 every pair of the ten combined. Several big mods together can still be too
+  big for the RAM: the window says so.
 
 Each `.elemod` is built from your own official OS file, so nothing of Elektron's is in it. Then:
 

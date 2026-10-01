@@ -231,6 +231,10 @@ class Updates:
             out += [('checked at %s\n' % self.checked_at, 'm')]
         out += [('\nVersion %s, built from %s\n' % (ver, proj), 'h'), ('%s\n' % (built[:90] or '?'), 'm'),
                 ('%s\n' % URLS.get(proj, ''), 'm')]
+        if ver.endswith('-chain'):
+            out += [('\nChained build: ', 'h'), ('its code is %s\'s own; the SRC-page places it shares with SOPHIE, '
+                     'NEIGHBOR or DIGISLICER go through digichain, which it needs (ticked with it). '
+                     'That is what lets them combine.\n' % proj, 'm')]
         self.v_btn.configure(text='Update now' if st and st.get('behind') else 'Check for updates')
         self._write(t, out)
 

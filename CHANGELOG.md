@@ -3,6 +3,15 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## digichain 1.0 (HW: not yet)
+- New mod **digichain**: SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) now
+  combine. It owns the SRC-page and render places they each patched and sends each call to the mod whose
+  machine it is for; `tools/chain_patch.py` moves those mods' sites to it at build time (`-chain`
+  versions), their code unchanged. mods/digichain/README.md.
+- Checked in digiemu against the original mods: the same SRC pages pixel for pixel, the same ranges,
+  SOPHIE's and NEIGHBOR's voices the same bit for bit; NEIGHBOR can now take a SOPHIE track.
+- elekloader.app builds and updates the chained versions; the Version tab says when a mod is one.
+
 ## Digi Mono 0.6 (HW: not yet)
 - New machine **MONO VO**, a formant voice after the Monomachine's VO-6:
   - three vowel resonators on a glottal source, from published vowel measurements;

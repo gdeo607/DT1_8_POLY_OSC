@@ -217,12 +217,12 @@ wrappers reach it. Checked:
   `--menu-before 1`, as SOPHIE is listed first), SOPHIE's own SRC page shows its knobs, and a SOPHIE
   track sounds.
 
-## Other mods (checked with `elekloader.patch --check`, 2026-10-01)
+## Other mods (checked with `elekloader.patch --check`, 2026-10-01; `tools/dev.sh elemods` redoes it)
 
 | mod | what | with Digi Mono |
 |---|---|---|
 | digisophie 0.1.7 | SOPHIE percussion machine (id 7) | combines; checked in digiemu |
-| digineighbor 0.6 (irpina) | NEIGHBOR machine (id 4) | combines; does not combine with digisophie (same SRC page entries) |
+| digineighbor 0.6 (irpina) | NEIGHBOR machine (id 4) | combines; does not combine with digisophie (same SRC page entries); combines with digislicer |
 | DigiFilter 1.0i (DigiAlchemydsp) | filter TYPEs BP, BP2, COMB, TRASH | combines, also with digisophie or digineighbor |
 | digislicer 2.0 | DIGISLICER machine (id 5) | combines; does not combine with digisophie (same range callers) |
 | digiutils, digimatrix, digieq (this repo) | | combine |

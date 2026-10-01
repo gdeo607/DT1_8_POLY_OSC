@@ -8,11 +8,14 @@
 #   tools/dev.sh emutest                   the build in digiemu, every Digi Mono machine, bit for bit
 #   tools/dev.sh play                      open digiemu's window (play the build with mouse and keys)
 #   tools/dev.sh all [mods...]             test, build, emu, emutest: run this after every change
+#   tools/dev.sh update                    pull the latest of every mod and tool (instead of the pinned ones)
+#   tools/dev.sh elemods                   every mod as an .elemod in out/dev/elemods, for the elekloader app,
+#                                          with COMPATIBILITY.txt: which pairs combine
 #
 # Mods for build/all: digimono, digiutils, digimatrix, digieq (this repo); digisophie, digislicer,
 # digifilter, digineighbor (fetched by setup). digipoly needs core 2.0a and is not built here.
-# Not every pair combines: digisophie / digineighbor / digislicer clash with each other (elekloader
-# says which); digimono combines with each of them.
+# Not every pair combines: digisophie clashes with digislicer and with digineighbor (elekloader says
+# where; `elemods` writes the full table); digimono combines with all of them.
 #
 # Settings (environment):
 #   STOCK=path/to/Digitakt_OS1.53.syx      required: your own official file (never committed)
@@ -207,6 +210,63 @@ cmd_emutest() {
     say "every machine passed; recordings in $LOG/MONO_*.wav, screens in $LOG/png_*"
 }
 
+ELEMOD_ALL=(digimono digiutils digimatrix digieq digisophie digislicer digifilter digineighbor)
+
+cmd_update() {   # the latest of every fetched project (instead of the pinned versions)
+    say "pulling the latest elekloader, digiemu and mods"
+    for d in elekloader digiemu digisophie digislicer digifilter digineighbor; do
+        [[ -d $TOOLS/$d/.git ]] || { echo "  $d: not fetched (run setup)"; continue; }
+        local b
+        b=$(git -C "$TOOLS/$d" remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p')
+        git -C "$TOOLS/$d" fetch -q origin && git -C "$TOOLS/$d" checkout -q "origin/${b:-main}" \
+            && echo "  $d: $(git -C "$TOOLS/$d" log -1 --format='%h %cs %s' | cut -c1-70)"
+    done
+    git -C "$ROOT" pull -q --ff-only 2>/dev/null && echo "  digi1_mods: $(git -C "$ROOT" log -1 --format='%h %cs %s' | cut -c1-70)" \
+        || echo "  digi1_mods: not pulled (local changes, or no upstream); pull it yourself"
+    echo "  (digiemu changed? run setup again for its Python environment)"
+}
+
+cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs combine
+    need_stock
+    find_cross
+    local out=$DEV/elemods
+    rm -rf "$out"; mkdir -p "$out" "$BUILD/mods" "$LOG"
+    say "building every mod's .elemod into $out"
+    cp "$(build_one core "$TOOLS/elekloader/mods/core")" "$out/"
+    local ok=() m f
+    for m in "${ELEMOD_ALL[@]}"; do
+        case $m in
+            digimono) f=$(build_one digimono "$ROOT/mods/digimono") ;;
+            digiutils|digimatrix|digieq)
+                PYTHONPATH=$TOOLS/elekloader python3 "$ROOT/tools/build_elemods.py" --stock "$STOCK" \
+                    --elekloader "$TOOLS/elekloader" --out "$BUILD/mods" --mods "$m" > "$LOG/build-$m.log" 2>&1 \
+                    || { echo "  $m: FAILED (see $LOG/build-$m.log)"; continue; }
+                f=$(ls "$BUILD/mods/$m"/out/*.elemod) ;;
+            *) [[ -d $TOOLS/$m ]] || { echo "  $m: not fetched (run setup)"; continue; }
+               f=$(build_one "$m" "$TOOLS/$m") ;;
+        esac
+        cp "$f" "$out/" && ok+=("$out/$(basename "$f")") && echo "  $(basename "$f")"
+    done
+    say "which pairs combine (elekloader --check, with core)"
+    local core i j a b
+    core=$(ls "$out"/core-*.elemod)
+    : > "$out/COMPATIBILITY.txt"
+    for ((i = 0; i < ${#ok[@]}; i++)); do
+        for ((j = i + 1; j < ${#ok[@]}; j++)); do
+            a=${ok[i]}; b=${ok[j]}
+            if PYTHONPATH=$TOOLS/elekloader python3 -m elekloader.patch --stock "$STOCK" --mod "$core" \
+                    --mod "$a" --mod "$b" --check > "$LOG/pair.log" 2>&1; then
+                echo "ok      $(basename "$a") + $(basename "$b")" >> "$out/COMPATIBILITY.txt"
+            else
+                echo "CLASH   $(basename "$a") + $(basename "$b"): $(grep -E 'overlap|claim|both|conflict' "$LOG/pair.log" | head -1 | sed 's/^ *//')" \
+                    >> "$out/COMPATIBILITY.txt"
+            fi
+        done
+    done
+    grep CLASH "$out/COMPATIBILITY.txt" || echo "  every pair combines"
+    say "done: open elekloader, add the .elemod files from $out (core is built in), tick the ones you want"
+}
+
 cmd_play() {
     cd "$TOOLS/digiemu" && exec .venv/bin/python -m emu.portable
 }
@@ -225,6 +285,8 @@ case ${1:-} in
     emu) shift; cmd_emu "$@" ;;
     emutest) shift; cmd_emutest "$@" ;;
     play) shift; cmd_play "$@" ;;
+    update) shift; cmd_update "$@" ;;
+    elemods) shift; cmd_elemods "$@" ;;
     all) shift; cmd_all "$@" ;;
-    *) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n "2,27p" "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

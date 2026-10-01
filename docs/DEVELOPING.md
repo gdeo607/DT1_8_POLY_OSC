@@ -71,7 +71,34 @@ Checks that are not in `all` yet:
   printed. Two of its checks (FREQ, VOL) fail until the open issue in mods/digimono/DESIGN.md is fixed.
 - **CPU on a real unit:** that needs digihealth's SYSTEM INFO on hardware (step 5).
 
-## 4. Play it yourself in the emulator
+## 4. All the mods as .elemod files, for the elekloader app
+
+```sh
+tools/dev.sh update      # optional: the latest of every mod and of elekloader, instead of the pinned versions
+tools/dev.sh elemods
+```
+
+`elemods` writes `out/dev/elemods/`:
+
+- **Your repo's mods:** digimono, digiutils, digimatrix and digieq.
+- **The others:** digisophie, digislicer, DigiFilter and digineighbor.
+- **core:** the elekloader app has core built in.
+- **COMPATIBILITY.txt:** elekloader's check for every pair, `ok` or `CLASH` with the overlapping address.
+  On 2026-10-01 the only clashes were digisophie + digislicer and digisophie + digineighbor.
+
+Each `.elemod` is built from your own official OS file, so nothing of Elektron's is in it. Then:
+
+1. Open the elekloader app (its Releases page has Windows and macOS builds).
+2. Give it your official `Digitakt_OS1.53.syx` the first time.
+3. Add the `.elemod` files from `out/dev/elemods/` and tick the mods you want; it refuses a pair that
+   clashes.
+4. BUILD FIRMWARE: it writes and verifies the `.syx`. Flash it as in step 6.
+
+The app's core and the core the mods were built against must match. After `update`, use an app at least
+as new as the elekloader commit `update` printed, or build from the command line (`tools/dev.sh build
+<mods>`), which uses the same checkout as the mods.
+
+## 5. Play it yourself in the emulator
 
 ```sh
 tools/dev.sh play
@@ -81,7 +108,7 @@ This opens digiemu's window with the builds you added. Click the keys, use the m
 knobs, and listen. FUNC+SRC then scroll past SLICE picks a Digi Mono machine. The factory samples are not
 in digiemu, but Digi Mono needs none.
 
-## 5. On your unit
+## 6. On your unit
 
 Flash the `.syx` from `out/dev/build/` the way docs/INSTALL.md describes (back up first, keep the official
 file, know the recovery route). For each build, before you rely on it:
@@ -94,7 +121,7 @@ file, know the recovery route). For each build, before you rely on it:
 
 Only a build that ran on the unit counts as hardware-verified.
 
-## 6. Keeping your work
+## 7. Keeping your work
 
 - **Branches:** one per change (`git checkout -b my-change`). Commit the sources and their tests, never
   `out/` or a `.syx`.

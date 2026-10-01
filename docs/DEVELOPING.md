@@ -36,6 +36,11 @@ tools/dev.sh loader               # elekloader's window, with all of them listed
 In the window, tick the mods you want; it ticks core for you. It marks a pair that clashes. Then click
 BUILD FIRMWARE, which saves a verified `.syx`. Flash that file as in step 6.
 
+**Or with a double-click:** copy `tools/macos/Update Digitakt mods.command` into your Elektron folder (the
+one holding `Digitakt 1`). It does all of the above. The new mods go to `Digitakt 1/0_Latest_Mods`, the
+previous ones to `Digitakt 1/4_bin/mods_<date>`, and it reads your OS file from
+`Digitakt 1/1_official_firmware/Digitakt_OS1.53.syx`; edit its first lines if your folders differ.
+
 The window here is elekloader's own, run from the same checkout the mods were built with, so its core
 always matches theirs. If you once installed a mod of the same file name into the window's library by
 hand, that copy is listed instead: `loader` names it, and Uninstall in the window removes it.

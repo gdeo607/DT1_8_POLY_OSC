@@ -50,7 +50,7 @@ git -C "$REPO" pull -q --ff-only origin "$BRANCH" || fail "could not pull $REPO 
 git -C "$REPO" log -1 --format='   %h %cs %s'
 
 "$REPO/tools/dev.sh" mods || fail "building the mods failed (the logs are in $REPO/out/dev/log)"
-NEW="$REPO/out/dev/elemods"
+NEW="${DEV:-$REPO/out/dev}/elemods"
 ls "$NEW"/*.elemod > /dev/null 2>&1 || fail "no .elemod files were built"
 
 echo

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Develop the mods on your own computer: set up once, then build, test and run every change.
 #
+# The easy path, for the elekloader window (no emulator, no tests):
+#   tools/dev.sh mods                      the latest elekloader and mods, built as .elemod files
+#   tools/dev.sh loader                    open elekloader's window with them: tick, BUILD FIRMWARE
+#
+# Developing:
 #   tools/dev.sh setup                     tools: elekloader, digiemu (+ patched Unicorn), digisophie
 #   tools/dev.sh test                      the engine alone: what each machine does, ColdFire = PC
 #   tools/dev.sh build [mods...]           your OS file: core 2.1 + the mods (default: digimono)
@@ -212,18 +217,58 @@ cmd_emutest() {
 
 ELEMOD_ALL=(digimono digiutils digimatrix digieq digisophie digislicer digifilter digineighbor)
 
-cmd_update() {   # the latest of every fetched project (instead of the pinned versions)
+FETCHED=(elekloader digiemu digisophie digislicer digifilter digineighbor)
+
+cmd_update() {   # [projects...] the latest of each fetched project (instead of the pinned versions)
     say "pulling the latest elekloader, digiemu and mods"
-    for d in elekloader digiemu digisophie digislicer digifilter digineighbor; do
+    local d b
+    for d in "${@:-${FETCHED[@]}}"; do
         [[ -d $TOOLS/$d/.git ]] || { echo "  $d: not fetched (run setup)"; continue; }
-        local b
         b=$(git -C "$TOOLS/$d" remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p')
         git -C "$TOOLS/$d" fetch -q origin && git -C "$TOOLS/$d" checkout -q "origin/${b:-main}" \
             && echo "  $d: $(git -C "$TOOLS/$d" log -1 --format='%h %cs %s' | cut -c1-70)"
     done
     git -C "$ROOT" pull -q --ff-only 2>/dev/null && echo "  digi1_mods: $(git -C "$ROOT" log -1 --format='%h %cs %s' | cut -c1-70)" \
         || echo "  digi1_mods: not pulled (local changes, or no upstream); pull it yourself"
-    echo "  (digiemu changed? run setup again for its Python environment)"
+    [[ $# -gt 0 ]] || echo "  (digiemu changed? run setup again for its Python environment)"
+}
+
+cmd_mods() {   # the easy path: the latest elekloader and mods as .elemod files, no emulator
+    mkdir -p "$TOOLS" "$BUILD" "$LOG"
+    command -v git >/dev/null || die "git is missing"
+    command -v python3 >/dev/null || die "python3 is missing"
+    need_stock
+    find_cross
+    say "fetching elekloader and the mods"
+    fetch elekloader "$ELEKLOADER_URL" ""
+    fetch digisophie "$DIGISOPHIE_URL" ""
+    fetch digislicer "$DIGISLICER_URL" ""
+    fetch digifilter "$DIGIFILTER_URL" ""
+    fetch digineighbor "$DIGINEIGHBOR_URL" ""
+    cmd_update elekloader digisophie digislicer digifilter digineighbor
+    cmd_elemods
+    echo "next: tools/dev.sh loader"
+}
+
+cmd_loader() {   # elekloader's window, from the checkout the mods were built with
+    need_stock
+    [[ -d $TOOLS/elekloader ]] || die "run tools/dev.sh mods first"
+    ls "$DEV/elemods"/*.elemod >/dev/null 2>&1 || die "no .elemod files yet: run tools/dev.sh mods first"
+    local py= c
+    for c in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+        if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import tkinter' 2>/dev/null; then py=$c; break; fi
+    done
+    [[ -n $py ]] || die "no Python with Tkinter (the window's toolkit): macOS: brew install python-tk; Debian/Ubuntu: apt install python3-tk"
+    # A mod you installed by hand in the window's library wins over a file of the same name here.
+    local lib=$HOME/.elekloader/mods f
+    if [[ -n ${APPDATA:-} ]]; then lib=$APPDATA/elekloader/mods; fi
+    for f in "$DEV/elemods"/*.elemod; do
+        if [[ -f $lib/$(basename "$f") ]]; then
+            echo "note: $(basename "$f") is also in your library ($lib), and that copy is listed; Uninstall it in the window to use the new one"
+        fi
+    done
+    say "opening elekloader (core and the mods from $DEV/elemods are listed)"
+    PYTHONPATH=$TOOLS/elekloader "$py" -m elekloader --stock "$STOCK" --mods "$DEV/elemods"
 }
 
 cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs combine
@@ -236,14 +281,15 @@ cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs com
     local ok=() m f
     for m in "${ELEMOD_ALL[@]}"; do
         case $m in
-            digimono) f=$(build_one digimono "$ROOT/mods/digimono") ;;
+            digimono) f=$(build_one digimono "$ROOT/mods/digimono") \
+                || { echo "  digimono: FAILED (see $LOG/build-digimono.log)"; continue; } ;;
             digiutils|digimatrix|digieq)
                 PYTHONPATH=$TOOLS/elekloader python3 "$ROOT/tools/build_elemods.py" --stock "$STOCK" \
                     --elekloader "$TOOLS/elekloader" --out "$BUILD/mods" --mods "$m" > "$LOG/build-$m.log" 2>&1 \
                     || { echo "  $m: FAILED (see $LOG/build-$m.log)"; continue; }
                 f=$(ls "$BUILD/mods/$m"/out/*.elemod) ;;
             *) [[ -d $TOOLS/$m ]] || { echo "  $m: not fetched (run setup)"; continue; }
-               f=$(build_one "$m" "$TOOLS/$m") ;;
+               f=$(build_one "$m" "$TOOLS/$m") || { echo "  $m: FAILED (see $LOG/build-$m.log)"; continue; } ;;
         esac
         cp "$f" "$out/" && ok+=("$out/$(basename "$f")") && echo "  $(basename "$f")"
     done
@@ -264,7 +310,7 @@ cmd_elemods() {   # every mod as an .elemod, in one folder, with which pairs com
         done
     done
     grep CLASH "$out/COMPATIBILITY.txt" || echo "  every pair combines"
-    say "done: open elekloader, add the .elemod files from $out (core is built in), tick the ones you want"
+    say "done: tools/dev.sh loader opens elekloader with them (or add them to the elekloader app; it has core built in)"
 }
 
 cmd_play() {
@@ -287,6 +333,8 @@ case ${1:-} in
     play) shift; cmd_play "$@" ;;
     update) shift; cmd_update "$@" ;;
     elemods) shift; cmd_elemods "$@" ;;
+    mods) shift; cmd_mods "$@" ;;
+    loader) shift; cmd_loader "$@" ;;
     all) shift; cmd_all "$@" ;;
-    *) sed -n "2,27p" "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n "2,32p" "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

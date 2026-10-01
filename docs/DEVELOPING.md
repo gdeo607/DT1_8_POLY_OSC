@@ -12,12 +12,40 @@ One script, `tools/dev.sh`, runs the whole loop:
 It never writes to your unit, and it never puts firmware in git: everything it makes goes to `out/dev/`,
 which git ignores.
 
+## The easy path: the latest mods in elekloader's window
+
+If you only want to pick mods and build your own `.syx`, skip the rest of this page.
+
+Once, on macOS:
+
+```sh
+brew install git python python-tk m68k-elf-binutils m68k-elf-gcc
+git clone https://github.com/gdeo607/digi1_mods ~/digi1_mods
+```
+
+Each time you want the latest:
+
+```sh
+cd ~/digi1_mods
+git checkout claude/digimono      # or main, once it is merged
+export STOCK="/full/path/to/Digitakt_OS1.53.syx"
+tools/dev.sh mods                 # the latest elekloader and mods, as .elemod files
+tools/dev.sh loader               # elekloader's window, with all of them listed
+```
+
+In the window, tick the mods you want; it ticks core for you. It marks a pair that clashes. Then click
+BUILD FIRMWARE, which saves a verified `.syx`. Flash that file as in step 6.
+
+The window here is elekloader's own, run from the same checkout the mods were built with, so its core
+always matches theirs. If you once installed a mod of the same file name into the window's library by
+hand, that copy is listed instead: `loader` names it, and Uninstall in the window removes it.
+
 ## 1. What you need (once)
 
 | | macOS | Linux / Windows (WSL2, Ubuntu) |
 |---|---|---|
-| basics | `xcode-select --install`, then `brew install git python cmake uv` | `sudo apt install git python3 python3-pip cmake build-essential`, then install uv: `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| ColdFire cross compiler | `brew install m68k-elf-gcc m68k-elf-binutils` (then `export ELEKLOADER_CROSS=m68k-elf-`) | `sudo apt install gcc-m68k-linux-gnu binutils-m68k-linux-gnu` |
+| basics | `xcode-select --install`, then `brew install git python python-tk cmake uv` | `sudo apt install git python3 python3-pip cmake build-essential`, then install uv: `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| ColdFire cross compiler | `brew install m68k-elf-gcc m68k-elf-binutils` (found on its own) | `sudo apt install gcc-m68k-linux-gnu binutils-m68k-linux-gnu` |
 | your official OS | `Digitakt_OS1.53.syx` from Elektron's Digitakt download page | same |
 
 - **Windows:** use WSL2 (Ubuntu) for the script. digiemu's window runs there through WSLg on Windows 11.

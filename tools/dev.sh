@@ -18,7 +18,7 @@
 #                                          with COMPATIBILITY.txt: which pairs combine
 #
 # Mods for build/all: digimono, digiutils, digimatrix, digieq (this repo); digisophie, digislicer,
-# digifilter, digineighbor (fetched by setup). digipoly needs core 2.0a and is not built here.
+# digifilter, digineighbor, digihealth (fetched by setup). digipoly needs core 2.0a and is not built here.
 # Not every pair combines: digisophie clashes with digislicer and with digineighbor (elekloader says
 # where; `elemods` writes the full table); digimono combines with all of them.
 #
@@ -52,6 +52,8 @@ DIGIFILTER_URL=https://github.com/DigiAlchemydsp/DigiFilter
 DIGIFILTER_REV=dee3f93cc3f79f333d02a4cc119eb6f19f3d6068
 DIGINEIGHBOR_URL=https://github.com/irpina/digineighbor
 DIGINEIGHBOR_REV=83c34deefbee38a2ac6309d725a5359f324de557
+DIGIHEALTH_URL=https://github.com/irpina/digihealth
+DIGIHEALTH_REV=72f0183383e67c3313146bf77df6f71dd7996a8f
 
 say() { printf '\n== %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -102,6 +104,7 @@ cmd_setup() {
     fetch digislicer "$DIGISLICER_URL" ""
     fetch digifilter "$DIGIFILTER_URL" "$DIGIFILTER_REV"
     fetch digineighbor "$DIGINEIGHBOR_URL" "$DIGINEIGHBOR_REV"
+    fetch digihealth "$DIGIHEALTH_URL" "$DIGIHEALTH_REV"
     say "digiemu: Python environment and the patched Unicorn (a few minutes, once)"
     (cd "$TOOLS/digiemu" && uv sync -q && tools/install-patched-unicorn.sh > "$LOG/unicorn.log" 2>&1) \
         || die "patched Unicorn failed: see $LOG/unicorn.log"
@@ -131,8 +134,13 @@ build_one() {   # build_one NAME SOURCEDIR -> echo the .elemod
     local stage=$BUILD/mods/$1
     rm -rf "$stage"
     cp -r "$2" "$stage"
-    PYTHONPATH=$TOOLS/elekloader python3 -m elekloader.sdk.build "$stage" --stock "$STOCK" > "$LOG/build-$1.log" 2>&1 \
-        || die "$1 failed to build: $LOG/build-$1.log"
+    if [[ $1 == digihealth ]]; then   # its own build.py: FAST AUDIO's parts are worked out from the stock file
+        (cd "$stage" && PYTHONPATH=$TOOLS/elekloader python3 build.py --stock "$STOCK" --out "$stage/out") \
+            > "$LOG/build-$1.log" 2>&1 || die "$1 failed to build: $LOG/build-$1.log"
+    else
+        PYTHONPATH=$TOOLS/elekloader python3 -m elekloader.sdk.build "$stage" --stock "$STOCK" > "$LOG/build-$1.log" 2>&1 \
+            || die "$1 failed to build: $LOG/build-$1.log"
+    fi
     ls "$stage"/out/*.elemod
 }
 
@@ -152,6 +160,7 @@ cmd_build() {
             digislicer) files+=("$(build_one digislicer "$TOOLS/digislicer")") ;;
             digifilter) files+=("$(build_one digifilter "$TOOLS/digifilter")") ;;
             digineighbor) files+=("$(build_one digineighbor "$TOOLS/digineighbor")") ;;
+            digihealth) files+=("$(build_one digihealth "$TOOLS/digihealth")") ;;
             digiutils|digimatrix|digieq)
                 PYTHONPATH=$TOOLS/elekloader python3 "$ROOT/tools/build_elemods.py" --stock "$STOCK" \
                     --elekloader "$TOOLS/elekloader" --out "$BUILD/mods" --mods "$m" > "$LOG/build-$m.log" 2>&1 \
@@ -215,9 +224,9 @@ cmd_emutest() {
     say "every machine passed; recordings in $LOG/MONO_*.wav, screens in $LOG/png_*"
 }
 
-ELEMOD_ALL=(digimono digiutils digimatrix digieq digisophie digislicer digifilter digineighbor)
+ELEMOD_ALL=(digimono digiutils digimatrix digieq digisophie digislicer digifilter digineighbor digihealth)
 
-FETCHED=(elekloader digiemu digisophie digislicer digifilter digineighbor)
+FETCHED=(elekloader digiemu digisophie digislicer digifilter digineighbor digihealth)
 
 cmd_update() {   # [projects...] the latest of each fetched project (instead of the pinned versions)
     say "pulling the latest elekloader, digiemu and mods"
@@ -246,7 +255,8 @@ cmd_mods() {   # the easy path: the latest elekloader and mods as .elemod files,
     fetch digislicer "$DIGISLICER_URL" ""
     fetch digifilter "$DIGIFILTER_URL" ""
     fetch digineighbor "$DIGINEIGHBOR_URL" ""
-    cmd_update elekloader digisophie digislicer digifilter digineighbor
+    fetch digihealth "$DIGIHEALTH_URL" ""
+    cmd_update elekloader digisophie digislicer digifilter digineighbor digihealth
     cmd_elemods
     echo "next: tools/dev.sh loader"
 }

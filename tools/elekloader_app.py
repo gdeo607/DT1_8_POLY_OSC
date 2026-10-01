@@ -5,7 +5,7 @@
 
 - One window at a time: a second launch says so and quits.
 - At launch, and with the toolbar's "Check for updates" button, it asks GitHub whether digi1_mods,
-  elekloader or the mods it builds (digisophie, digislicer, DigiFilter, digineighbor) have new
+  elekloader or the mods it builds (digisophie, digislicer, DigiFilter, digineighbor, digihealth) have new
   commits, and offers to update them.
 - Updating runs `tools/dev.sh mods` (fetch, build every .elemod from your stock OS file, check which
   pairs combine), shows its output, and lists the new mods in the window. When elekloader or this
@@ -34,7 +34,7 @@ ELEMODS = os.path.join(DEV, 'elemods')
 DEVSH = os.path.join(ROOT, 'tools', 'dev.sh')
 ELEKLOADER_URL = 'https://github.com/irpina/elekloader'
 # what `dev.sh mods` fetches, besides this repo
-FETCHED = ('elekloader', 'digisophie', 'digislicer', 'digifilter', 'digineighbor')
+FETCHED = ('elekloader', 'digisophie', 'digislicer', 'digifilter', 'digineighbor', 'digihealth')
 
 os.environ['PATH'] = os.pathsep.join(['/opt/homebrew/bin', '/usr/local/bin', os.environ.get('PATH', '')])
 
@@ -53,7 +53,8 @@ def head(path):
 PROJECTS = [('digi1_mods', ROOT, '@{u}')] + [(n, os.path.join(TOOLS, n), 'origin/HEAD') for n in FETCHED]
 URLS = {'digi1_mods': 'github.com/gdeo607/digi1_mods', 'elekloader': 'github.com/irpina/elekloader',
         'digisophie': 'github.com/soejrd/digisophie', 'digislicer': 'github.com/irpina/digislicer',
-        'digifilter': 'github.com/DigiAlchemydsp/DigiFilter', 'digineighbor': 'github.com/irpina/digineighbor'}
+        'digifilter': 'github.com/DigiAlchemydsp/DigiFilter', 'digineighbor': 'github.com/irpina/digineighbor',
+        'digihealth': 'github.com/irpina/digihealth'}
 
 
 def check_updates():

@@ -120,7 +120,7 @@ tools/dev.sh elemods
 `elemods` writes `out/dev/elemods/`:
 
 - **Your repo's mods:** digimono, digiutils, digimatrix and digieq.
-- **The others:** digisophie, digislicer, DigiFilter and digineighbor.
+- **The others:** digisophie, digislicer, DigiFilter, digineighbor and digihealth.
 - **core:** the elekloader app has core built in.
 - **COMPATIBILITY.txt:** elekloader's check for every pair, `ok` or `CLASH` with the overlapping address.
   On 2026-10-01 the only clashes were digisophie + digislicer and digisophie + digineighbor.

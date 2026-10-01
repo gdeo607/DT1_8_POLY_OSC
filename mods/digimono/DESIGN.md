@@ -175,8 +175,9 @@ plays. The stock render is about 84,000 a block.
 | MONO SAW at its defaults | ~2,400 |
 | MONO SAW, every oscillator on | ~5,900 |
 | MONO ENS with the chorus | ~6,600 |
-| MONO VO (0.8), a vowel | ~3,000 (0.7: ~4,400 instructions, ~12,300 cycles with its divides) |
-| MONO VO (0.8), while a consonant sounds | ~6,400 at most |
+| MONO ENS (0.9), at its defaults | ~1,800 (0.8: ~3,000) |
+| MONO VO (0.9), a vowel | ~2,400 (0.7: ~4,400 instructions, ~12,300 cycles with its divides) |
+| MONO VO (0.9), while a consonant sounds | ~4,200 |
 | a Digi Mono track not playing | ~100 |
 
 **MONO VO (0.8)** was the heaviest by far in cycles: two divides a sample (about 35 cycles each on the
@@ -186,6 +187,18 @@ sample, with the output interpolated between (everything it makes is under 4 kHz
 is at most 48 dB under the voice); the consonant (S at 6 kHz) still runs at 48 kHz, only while it lasts;
 the ramps are running sums; the state is in locals for the block. An estimate of ColdFire cycles a voice
 a block (instruction kinds weighted: divide 35, multiply 4, load 2): a vowel ~4,400 (was ~12,300).
+
+**0.9** goes further on the two heaviest:
+
+- **ENS:** its four saws were four passes over a buffer, each sample loaded, a saw with its blep tests
+  worked out and stored four times. Now the four (and with WAVE the four a duty later) are one ramp: the
+  sum of their phases steps by the sum of their increments, drops by a cycle where one wraps, and gets the
+  blep only on the samples beside a wrap, found from one wrap to the next. Within 3 (16-bit) of 0.8's
+  samples. ~2,700 estimated cycles at the defaults (0.8: ~4,200), ~5,200 at the heaviest (~8,200).
+- **VO:** the consonant's noise band runs at 24 kHz for SH, H, T, K and P (all at 4 kHz or under, halfway
+  values between); S and F keep 48 kHz. The consonant is added over the vowel in a second loop, so neither
+  loop has more values than the CPU has registers; the vowel alone runs a pair of samples a pass. ~3,700
+  estimated cycles for a vowel, ~6,400 while the consonant sounds (0.8: ~4,400 and ~7,100; 0.7: ~12,300).
 
 Each playing Digi Mono voice adds 3-8 % to the render. The render already runs at about 80 % (72 % with
 FAST AUDIO), so **two to four Digi Mono tracks playing at once is the safe range until it is measured on

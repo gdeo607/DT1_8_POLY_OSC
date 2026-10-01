@@ -99,6 +99,39 @@ static inline int32_t pulse(uint32_t t, uint32_t o, uint32_t dt)
     return (saw(t, dt) - saw((t + o) & 0xffff, dt)) >> 1;
 }
 
+/* For a sum of saws run as one ramp (render_ens): the phase q stepping inc over n samples. d[j] gets
+ * -2^28 at each sample just after a wrap (the ramp, in phase >> 4, drops by a cycle there; not at j = 0,
+ * which the ramp's start already has), f[j] the blep of the samples on each side of a wrap (16-bit). */
+static void saw_wraps(int32_t *d, int32_t *f, uint32_t q, uint32_t inc, int n)
+{
+    uint32_t dt = inc >> 16;
+    int j = 0, last = -1;
+    if (!inc)
+        return;
+    for (;;) {
+        uint32_t steps;
+        if (q < inc && j != last) {                     /* just after a wrap */
+            if (j)
+                d[j] -= 1 << 28;
+            f[j] -= blep(q >> 16, dt);
+            last = j;
+        }
+        steps = ~q / inc;
+        if (steps >= (uint32_t)(n - j))
+            break;
+        j += (int)steps;
+        q += steps * inc;
+        if (j != last) {                                /* just before it */
+            f[j] -= blep(q >> 16, dt);
+            last = j;
+        }
+        j++;
+        q += inc;
+        if (j >= n)
+            break;
+    }
+}
+
 static inline int16_t sat16(int32_t x)
 {
     return x > 32767 ? 32767 : x < -32768 ? -32768 : (int16_t)x;
@@ -351,28 +384,10 @@ static void render_puls(struct mono_voice *v, const uint8_t *p, uint32_t inc, in
 }
 
 /* one ENS oscillator, saw - k * (saw a duty later), added into acc */
-static void osc_ens(int32_t *acc, uint32_t *ph, uint32_t inc, uint32_t o, int32_t k, int n)
-{
-    uint32_t p = *ph, dt = inc >> 16;
-    if (k) {
-        while (n--) {
-            uint32_t t = p >> 16;
-            *acc++ += saw(t, dt) - ((saw((t + o) & 0xffff, dt) * k) >> 15);
-            p += inc;
-        }
-    } else {
-        while (n--) {
-            *acc++ += saw(p >> 16, dt);
-            p += inc;
-        }
-    }
-    *ph = p;
-}
-
 static void render_ens(struct mono_voice *v, const uint8_t *p, uint32_t inc, int16_t *out, int n)
 {
     uint32_t io[4], o = (uint32_t)duty(p[4]);
-    int32_t acc[CHUNK], k = lin(p[3]), gc = MONO_GAIN[p[5]], i;
+    int32_t k = lin(p[3]), gc = MONO_GAIN[p[5]], i;
     int32_t nw = (1 << 30) / (32768 + k);           /* keeps saw - k * saw' within +-1 */
     int32_t nc = (1 << 30) / (32768 + gc);          /* and dry + chorus */
     int32_t sw = (lin(p[6]) * CHO_DEPTH) >> 7;      /* chorus swing, Q8 samples */
@@ -393,19 +408,44 @@ static void render_ens(struct mono_voice *v, const uint8_t *p, uint32_t inc, int
     v->lfo += CHO_RATE * (uint32_t)n;
     d1 = CHO_BASE + ((((tri(v->lfo) << 1) - 32767) * sw) >> 15);
     dd = (d1 - d0) / n;
+    /* The four saws (and, with WAVE, the four a duty later) are each summed as one ramp: the sum of
+     * the phases (>> 4, so four fit in 30 bits) steps by the sum of the increments a sample and drops
+     * by a cycle where one wraps (d), with the blep of the samples beside a wrap (f) added in. Within
+     * 3 of the saws added one by one (16-bit). */
     while (n > 0) {
         int c = n < CHUNK ? n : CHUNK, j;
+        int32_t d1[CHUNK], f1[CHUNK], d2[CHUNK], f2[CHUNK];
+        uint32_t r1 = 0, r2 = 0, s1 = 0, s2 = 0;
         for (j = 0; j < c; j++)
-            acc[j] = 0;
-        for (i = 0; i < 4; i++)
-            osc_ens(acc, &v->ph[i], io[i], o, k, c);
+            d1[j] = f1[j] = d2[j] = f2[j] = 0;
+        for (i = 0; i < 4; i++) {
+            uint32_t q = v->ph[i];
+            r1 += q >> 4;
+            s1 += io[i] >> 4;
+            saw_wraps(d1, f1, q, io[i], c);
+            if (k) {
+                r2 += (q + (o << 16)) >> 4;
+                s2 += io[i] >> 4;
+                saw_wraps(d2, f2, q + (o << 16), io[i], c);
+            }
+            v->ph[i] = q + (uint32_t)c * io[i];
+        }
+        r1 -= s1;                                   /* the loop steps first */
+        r2 -= s2;
         for (j = 0; j < c; j++) {
-            int32_t dry = ((acc[j] >> 2) * (nw >> 1)) >> 14;
+            int32_t x, dry;
+            r1 += s1 + (uint32_t)d1[j];
+            x = (int32_t)(r1 >> 12) - 4 * 32768 + f1[j];
+            if (k) {
+                r2 += s2 + (uint32_t)d2[j];
+                x -= ((((int32_t)(r2 >> 12) - 4 * 32768) + f2[j]) * (k >> 2)) >> 13;   /* 4 saws: 2^17 */
+            }
+            dry = ((x >> 2) * (nw >> 1)) >> 14;
             v->dl[wr] = sat16(dry);
             if (gc) {
                 int32_t di = d0 >> 8, fr = d0 & 255;
-                int32_t a = v->dl[(wr - di) & CHO_MASK], b = v->dl[(wr - di - 1) & CHO_MASK];
-                int32_t wet = a + (((b - a) * fr) >> 8);
+                int32_t sa = v->dl[(wr - di) & CHO_MASK], sb = v->dl[(wr - di - 1) & CHO_MASK];
+                int32_t wet = sa + (((sb - sa) * fr) >> 8);
                 dry = ((dry + ((wet * gc) >> 15)) * (nc >> 1)) >> 14;
             }
             *out++ = sat16(dry);
@@ -489,7 +529,8 @@ static void render_vo(struct mono_voice *v, const uint8_t *p, uint32_t inc, int1
     if (ct && lenc > CONS[ct][2] * 48)
         lenc = CONS[ct][2] * 48;
     if (ct) {
-        cf = svf_f(CONS[ct][0]);
+        /* S and F (6, 7 kHz) run at 48 kHz; the others, at 4 kHz or under, at 24 kHz with the vowel */
+        cf = CONS[ct][0] > 4000 ? svf_f(CONS[ct][0]) : svf_f24(CONS[ct][0]);
         cq = CONS[ct][1];
     }
     cg = MONO_GAIN[p[6]];
@@ -552,33 +593,62 @@ static void render_vo(struct mono_voice *v, const uint8_t *p, uint32_t inc, int1
             par ^= 1;                                                                   \
         } while (0)
         if (ct && age0 < lenc) {
-            /* while the consonant lasts: the vowel fades in over its first half under a noise band at
-             * 48 kHz that decays; both ramps are running sums, Q8 */
-            int32_t clo = v->c_lo, cbp = v->c_bp;
+            /* while the consonant lasts: the vowel fades in over its first half under a noise band that
+             * decays. In chunks: the vowel into yb, then the consonant over it (two light loops rather
+             * than one with more values than the CPU has registers). The noise band runs at 48 kHz for S
+             * and F, else at 24 kHz with the vowel (halfway values between). Both ramps are running sums. */
+            int32_t clo = v->c_lo, cbp = v->c_bp, clast = 0, cnew = 0;
             int32_t va = age0 * vstep, ea = (lenc - age0) * einv;
-            while (n && age0 < lenc) {
-                int32_t y, x, nz, hp, venv = age0 < half ? va >> 8 : 32767;
-                VO_VOWEL(y);
-                x = (y * (venv >> 1)) >> 13;                /* x2 make-up with the fade */
-                r ^= r << 13; r ^= r >> 17; r ^= r << 5;
-                nz = (int32_t)r >> 17;
-                clo += (cf * cbp) >> 14;
-                hp = ((nz * cq) >> 14) - clo - ((cq * cbp) >> 14);
-                cbp += (cf * hp) >> 14;
-                x += (((cbp * (ea >> 8)) >> 15) * cg) >> 14;    /* x2: the band's level is its q's */
-                *out++ = sat16(x);
-                va += vstep;
-                ea -= einv;
-                age0++;
-                n--;
+            const int full = CONS[ct][0] > 4000;
+            int cn = lenc - age0 < n ? lenc - age0 : n;
+            while (cn > 0) {
+                int c = cn < 32 ? cn : 32, j, tick = !par;
+                int32_t yb[32];
+                for (j = 0; j < c; j++)
+                    VO_VOWEL(yb[j]);
+                for (j = 0; j < c; j++, tick ^= 1) {
+                    int32_t x, cy, venv = age0 < half ? va >> 8 : 32767;
+                    if (full || tick) {
+                        int32_t nz, hp;
+                        r ^= r << 13; r ^= r >> 17; r ^= r << 5;
+                        nz = (int32_t)r >> 17;
+                        clo += (cf * cbp) >> 14;
+                        hp = ((nz * cq) >> 14) - clo - ((cq * cbp) >> 14);
+                        cbp += (cf * hp) >> 14;
+                        cnew = (cbp * (((ea >> 8) * cg) >> 14)) >> 15;  /* x2: the band's level is its q's */
+                        cy = full ? cnew : (clast + cnew) >> 1;
+                        clast = cnew;
+                    } else {
+                        cy = cnew;
+                    }
+                    x = ((yb[j] * (venv >> 1)) >> 13) + cy;   /* the vowel x2 make-up with the fade */
+                    *out++ = sat16(x);
+                    va += vstep;
+                    ea -= einv;
+                    age0++;
+                }
+                cn -= c;
+                n -= c;
             }
             v->c_lo = clo;
             v->c_bp = cbp;
         }
-        if (n > 0) {                                        /* the vowel alone */
-            int32_t rest = n;
-            while (n--) {
-                int32_t y;
+        if (n > 0) {                                        /* the vowel alone, a 24 kHz sample a pair */
+            int32_t rest = n, y;
+            if (par) {                                      /* the second of a pair first */
+                VO_VOWEL(y);
+                *out++ = sat16((y * 16383) >> 13);
+                n--;
+            }
+            while (n >= 2) {
+                VO_VOWEL(y);                                /* a new sample: halfway to it */
+                out[0] = sat16((y * 16383) >> 13);
+                out[1] = sat16((yh * 16383) >> 13);         /* then it */
+                par ^= 1;
+                out += 2;
+                n -= 2;
+            }
+            if (n) {
                 VO_VOWEL(y);
                 *out++ = sat16((y * 16383) >> 13);
             }

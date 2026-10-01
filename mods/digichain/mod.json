@@ -1,11 +1,11 @@
 {
  "id": "digichain",
- "version": "1.1",
+ "version": "1.2",
  "title": "digichain",
  "category": "Framework",
  "author": "gdeo607",
  "license": "MIT",
- "description": "Lets SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) combine. Digi Mono gets its SRC page's layout, knob graphics and knob values through it too. Each of them patches the same SRC-page functions (knob labels, values, graphics, ranges) and the same render step; digichain owns those places once and passes each call to the mod whose machine it is for, or to the stock code. It needs the builds of those mods that tools/dev.sh makes for it (version ending in -chain), and changes nothing on its own.",
+ "description": "Lets SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) combine. Digi Mono gets its SRC page's layout, knob graphics and knob values through it too. Each of them patches the same SRC-page functions (knob labels, values, graphics, ranges) and the same render step; digichain owns those places once and passes each call to the mod whose machine it is for, or to the stock code. It also makes the machine menu draw every added machine's icon (core 2.1 drew only the first). It needs the builds of those mods that tools/dev.sh makes for it (version ending in -chain), and changes nothing on its own.",
  "device": "digitakt-mk1",
  "os": "1.53",
  "sources": [
@@ -112,6 +112,12 @@
    "stock": "45f940078f0c",
    "op": "keep2",
    "target": "digichain_prange_f"
+  },
+  {
+   "addr": "0x4002a382",
+   "stock": "4eb940029e80",
+   "op": "keep2",
+   "target": "digichain_mtype"
   }
  ],
  "resources": {

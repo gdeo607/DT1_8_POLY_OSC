@@ -29,6 +29,12 @@ handler of the machine it is for:
 - **ranges:** the machine of the sound the lookup is for, found from the object as the mods find it;
 - **the render step:** SOPHIE's voices, then NEIGHBOR's (so NEIGHBOR can take a SOPHIE track's sound).
 
+**Machine menu icons (1.2).** The menu's row loop draws a row's icon only when its icon type
+(`0x40029e80`: 1-4 for the stock four, 0 past them) differs from the row above's, so with core 2.1 only
+an added machine right under SLICE got its icon. digichain gives each added machine a type of its own at
+that call (`0x4002a382`), so SOPHIE's, DIGISLICER's and Digi Mono's icons show; the stock four are as
+they were.
+
 Digi Mono (machines 20..25, 1.1) gets its page's layout, knob graphics, UI records and knob values through
 it too; Digi Mono requires digichain.
 

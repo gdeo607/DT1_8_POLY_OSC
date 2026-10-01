@@ -3,6 +3,19 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## Digi Mono 0.9, digichain 1.2 (HW: not yet)
+- **MONO ENS about 35 % lighter at its defaults (~2,700 estimated ColdFire cycles a voice a block, was
+  ~4,200; heaviest ~5,200, was ~8,200).** Its four saws are worked out as one ramp with corrections at the
+  wraps, not four passes. Within 3 (16-bit) of 0.8's samples.
+- **MONO VO lighter again (a vowel ~3,700, while a consonant sounds ~6,400; 0.7: ~12,300).** SH, H, T, K
+  and P run at 24 kHz; the consonant and the vowel are separate loops. SH and H come out about 3 dB brighter
+  in 1-12 kHz; the vowel is as before.
+- **Icons in the machine menu:** MONO SIN, NOISE, SAW, PULSE, ENS and VO each have one
+  (tools/gen_mono_icons.py). digichain 1.2 fixes the menu so every added machine's icon shows (core 2.1
+  drew only the one right under SLICE): SOPHIE's and DIGISLICER's too.
+- Checked: the engine's signal tests, ColdFire = PC bit for bit, all six machines bit for bit in digiemu,
+  and the menu in digiemu with every icon.
+
 ## Digi Mono 0.8 (HW: not yet)
 - **MONO VO about three times lighter:** an estimated ~4,400 ColdFire cycles a voice a block for a vowel
   (was ~12,300), ~7,100 while a consonant sounds. The vowel runs at 24 kHz (its formants are all under

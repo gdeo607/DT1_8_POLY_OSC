@@ -210,3 +210,19 @@ digichain_rmach:
         movea.l 16(%a1), %a1
         move.b  126(%a1), %d1           | its machine
 9:      rts
+
+| The machine menu's icons. Its row loop (0x4002a37c..) asks 0x40029e80(machine) for a row's icon type
+| (1-4 for the stock four, 0 past them) and draws the row's icon only when the type differs from the row
+| above's (0 above the first). So with core 2.1 an added machine got its icon only right under SLICE, and
+| none past the first: SOPHIE, DIGISLICER and Digi Mono's never showed. At 0x4002a382 (was: jsr
+| 0x40029e80), by keep2: an added machine's type is its own (5 + its number), so every row draws its icon
+| (core's icon callback draws the machine's own, or none). The stock four are as they were.
+        .globl  digichain_mtype
+digichain_mtype:
+        move.l  4(%sp), %d0
+        moveq   #3, %d1
+        cmp.l   %d0, %d1
+        bcs.s   1f
+        jmp     0x40029e80              | 0-3: the stock types
+1:      addq.l  #5, %d0
+        rts

@@ -30,6 +30,8 @@ ap.add_argument("--blocks", default="", help="tracks whose voice block to record
 ap.add_argument("--set", default="", help="track:slot:value words written into the tracks' sounds before playing,"
                 " as a loaded kit would have them (e.g. 2:21:256: NEIGHBOR's SLOT = 1)")
 ap.add_argument("--settle", type=int, default=0, help="steps to wait on each SRC page before its screenshot")
+ap.add_argument("--blocks-at", default="0x40077fc0", help="where --blocks reads the voice blocks (default: right"
+                " after the render step at 0x40077fba; 0x40078142: before the mixer, every track stage done)")
 ap.add_argument("--out", required=True)
 a = ap.parse_args()
 
@@ -59,7 +61,7 @@ for _n in ("ttk", "messagebox", "filedialog", "font"):
 import emu.gui as G
 from unicorn import UC_HOOK_CODE
 import json
-AFTER_INJECT = 0x40077fc0                           # the instruction after the 6-byte site at 0x40077fba
+AFTER_INJECT = int(a.blocks_at, 0)                  # 0x40077fc0: the instruction after the site at 0x40077fba
 BLOCK_TRACKS = [int(x) for x in filter(None, a.blocks.split(","))]
 BLOCKS = {t_: [] for t_ in BLOCK_TRACKS}
 

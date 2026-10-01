@@ -3,6 +3,14 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## digichain 1.3 (HW: not yet)
+- **NEIGHBOR plays when you pick it.** A new NEIGHBOR track takes the track on its left as its source
+  (track 2 for track 1) once it has been NEIGHBOR for half a second; before, SLOT started at 0, silence.
+- **NEIGHBOR's SLOT runs 0-8** (it was SLICE's 0-64, where 9-64 were silence too).
+- Tested NEIGHBOR in digiemu: page, values, pitch shifter (within a few cents across +-12), source from
+  SOPHIE and Digi Mono tracks; chained and original NEIGHBOR the same. tests/digiemu_chain.py --blocks-at
+  reads the tracks before the mixer.
+
 ## Digi Mono 0.9, digichain 1.2 (HW: not yet)
 - **MONO ENS about 35 % lighter at its defaults (~2,700 estimated ColdFire cycles a voice a block, was
   ~4,200; heaviest ~5,200, was ~8,200).** Its four saws are worked out as one ramp with corrections at the

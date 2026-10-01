@@ -1,15 +1,16 @@
 {
  "id": "digichain",
- "version": "1.2",
+ "version": "1.3",
  "title": "digichain",
  "category": "Framework",
  "author": "gdeo607",
  "license": "MIT",
- "description": "Lets SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) combine. Digi Mono gets its SRC page's layout, knob graphics and knob values through it too. Each of them patches the same SRC-page functions (knob labels, values, graphics, ranges) and the same render step; digichain owns those places once and passes each call to the mod whose machine it is for, or to the stock code. It also makes the machine menu draw every added machine's icon (core 2.1 drew only the first). It needs the builds of those mods that tools/dev.sh makes for it (version ending in -chain), and changes nothing on its own.",
+ "description": "Lets SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) combine. Digi Mono gets its SRC page's layout, knob graphics and knob values through it too. Each of them patches the same SRC-page functions (knob labels, values, graphics, ranges) and the same render step; digichain owns those places once and passes each call to the mod whose machine it is for, or to the stock code. It also makes the machine menu draw every added machine's icon (core 2.1 drew only the first). For NEIGHBOR, SLOT runs 0-8 (not SLICE's 0-64) and a new NEIGHBOR track takes the track on its left as its source. It needs the builds of those mods that tools/dev.sh makes for it (version ending in -chain), and changes nothing on its own.",
  "device": "digitakt-mk1",
  "os": "1.53",
  "sources": [
-  "chain.s"
+  "chain.s",
+  "chain.c"
  ],
  "requires": [
   "core"
@@ -124,5 +125,12 @@
   "names": [
    "param:SRC page hooks shared by SOPHIE, NEIGHBOR and DIGISLICER"
   ]
- }
+ },
+ "subscribe": [
+  {
+   "event": "ev_tick",
+   "fn": "digichain_tick",
+   "order": 50
+  }
+ ]
 }

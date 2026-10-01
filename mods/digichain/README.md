@@ -35,6 +35,17 @@ an added machine right under SLICE got its icon. digichain gives each added mach
 that call (`0x4002a382`), so SOPHIE's, DIGISLICER's and Digi Mono's icons show; the stock four are as
 they were.
 
+**NEIGHBOR's source (1.3).** Its SLOT (knob E) is SLICE's parameter underneath: 0..64, and 0 after a
+switch, while only 1-8 pick a track (0, and its own track, are silence). So a new NEIGHBOR track played
+nothing, and a quick turn went past 8. digichain gives SLOT the range 0..8 on a NEIGHBOR sound, and when a
+track has been NEIGHBOR for half a second with SLOT at 0 (the menu switches as its cursor moves, so
+passing over NEIGHBOR does not count), sets SLOT to the track on its left (track 2 for track 1); leaving
+NEIGHBOR with SLOT still as set puts it back to 0 (`chain.c`, on `ev_tick`).
+
+Checked in digiemu (`tests/digiemu_chain.py`): NEIGHBOR's page and value texts as the original's; its pitch
+shifter (from a C4 saw: 262 Hz at TUNE 0, 368 at +6, 522 at +12, 127 at -12); a new NEIGHBOR track on track 2
+takes track 1 and plays with nothing set; SLOT stops at 8; Digi Mono's defaults after the menu passes it.
+
 Digi Mono (machines 20..25, 1.1) gets its page's layout, knob graphics, UI records and knob values through
 it too; Digi Mono requires digichain.
 

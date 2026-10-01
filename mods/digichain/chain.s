@@ -61,13 +61,23 @@ digichain_page_m:   .skip 4
 
 | d1 = the sound's machine: jmp to \soph on a SOPHIE sound, \dsl on a DIGISLICER one (when in the
 | build), else the stock lookup.
-        .macro  PRANGE soph, dsl
+        .macro  PRANGE soph, dsl, nbr
         moveq   #M_SOPH, %d0
         cmp.l   %d0, %d1
         bne.s   1f
         move.l  #\soph, %d0
         bra.s   2f
-1:      moveq   #M_DSL, %d0
+1:      moveq   #M_NBR, %d0
+        cmp.l   %d0, %d1
+        bne.s   4f
+        move.l  #0x88, %d0              | NEIGHBOR's SLOT (SLICE's id), if NEIGHBOR is in the build
+        cmp.l   4(%sp), %d0
+        bne.s   3f
+        move.l  #nb_layout, %d0
+        cmpi.l  #core_zero, %d0
+        beq.s   3f
+        bra     \nbr
+4:      moveq   #M_DSL, %d0
         cmp.l   %d0, %d1
         bne.s   3f
         move.l  #\dsl, %d0
@@ -182,12 +192,32 @@ digichain_inject:
 digichain_prange:
         movea.l %a2, %a1
         bsr.w   digichain_rmach
-        PRANGE  ds_prange, dsl_prange
+        PRANGE  ds_prange, dsl_prange, digichain_nb_range
 
 digichain_prange_f:
         movea.l 36(%sp), %a1
         bsr.w   digichain_rmach
-        PRANGE  ds_prange_f, dsl_prange_f
+        PRANGE  ds_prange_f, dsl_prange_f, digichain_nb_range_f
+
+| NEIGHBOR's SLOT is SLICE's parameter underneath, 0..64 (slices), but only 1-8 pick a track: the range is
+| 0..8 (0, off). Entered as the range lookup would be (as digislicer's dsl_prange): the object in a2, or
+| its caller's first argument (36(sp)); a0 where the range goes.
+digichain_nb_range:
+        movea.l %a2, %a1
+        bra.s   1f
+digichain_nb_range_f:
+        movea.l 36(%sp), %a1
+1:      move.l  %a1, -(%sp)             | the object
+        move.l  %a0, -(%sp)             | the result's place
+        move.l  12(%sp), -(%sp)         | the id
+        jsr     0x40078f0c
+        addq.l  #4, %sp
+        movea.l (%sp)+, %a0
+        movea.l (%sp)+, %a1
+        move.l  #8 << 8, %d0
+        move.l  %d0, 4(%a0)             | the max: track 8
+        move.l  %a0, %d0
+        rts
 
 | a1 = the object, the id at 8(sp) (past this call's return address) -> d1 = the machine of the
 | object's sound when the id is one SOPHIE or DIGISLICER changes, else 0. Uses d0, d1, a1.

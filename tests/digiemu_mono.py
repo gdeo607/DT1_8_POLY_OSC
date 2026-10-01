@@ -18,7 +18,7 @@ the machine's knob names), knob turns; RECORD, trigs on steps 1, 5, 9 and 13 of 
   4. every block voice 0 hands to the filter stage (0x80001a18, read right after digimono_rblock) equals
      the engine's own block, replayed on this PC from the same starts, notes and parameter words (Q31 =
      sample << 16), from the engine state the voice had before its first start; a block of a voice not
-     playing (gain 0, no start) is silence and leaves the engine as it was: the render hook, the note and
+     playing (its amp envelope silent for 32 blocks, no start) is silence and leaves the engine as it was: the render hook, the note and
      TUNE path, the knob mapping and the start detection;
   5. the master output carries it: the fundamental of the master mix is the note's.
 """
@@ -54,10 +54,12 @@ import numpy as np
 import mono_lib as H
 
 MODEL = H.NAMES.index(a.machine)
-KNOBS = "BCEFGH"                                    # the six knobs Digi Mono uses (digimono.c knob_slot)
-SLOTS = [18, 19, 21, 22, 23, 24]
-DEFAULTS = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 40, 0, 0, 0, 0], [0, 40, 0, 64, 0, 40],
-            [63, 63, 63, 0, 0, 127], [43, 113, 64, 0, 40, 100]]
+KNOBS = "BCEFGHD"                                   # Digi Mono's knobs (digimono.c knob_slot, knob_p)
+SLOTS = [18, 19, 21, 22, 23, 24, 20]
+DEFAULTS = [[0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 40, 0, 0, 0, 0, 0], [0, 40, 0, 64, 0, 40, 0],
+            [63, 63, 63, 0, 0, 127, 0], [43, 113, 64, 0, 40, 100, 0]]
+KNOB_P = [[-1] * 7, [0, 1, 2, -1, -1, -1, -1], [0, 1, 2, 4, 5, 6, -1], [0, 1, 2, 4, 5, 6, 3],
+          [0, 1, 2, 3, 5, 6, 4], [0, 1, 2, 4, 5, 6, 3]]
 MACH_FIRST = 20                                     # digimono's machine ids: 20..25
 TURNS = []
 for s in filter(None, a.knobs.split(",")):
@@ -162,7 +164,7 @@ def after(u, ad, s, d):
                    struct.unpack(">8h", u.mem_read(0x80002772 + 34, 16)),
                    struct.unpack(">32i", u.mem_read(0x80001a18, 128)),
                    u.mem_read(TRACK_MACH, 1)[0],
-                   struct.unpack(">i", u.mem_read(0x8000edc4 + 16, 4))[0]))
+                   struct.unpack(">2i", u.mem_read(0x4199df54, 8))))   # voice 0's amp phase and level
 
 
 def mst(u, ad, s, d):
@@ -254,33 +256,35 @@ same = diff = 0
 first_bad = None
 started = False
 skipped = 0
-for i, (sb, note, words, samples, mb, gain) in enumerate(blocks):
+quiet = 32                                           # digimono.c: QUIET_BLOCKS of a silent amp envelope
+for i, (sb, note, words, samples, mb, amp) in enumerate(blocks):
     if mb != MACH_FIRST + MODEL:
         continue
     if sb:
         e.trig()
         started = True
-    elif gain == 0:                                  # the voice is not playing: digimono renders nothing,
-        if started:                                  # the (empty) window stays silence
-            skipped += 1
-            if any(samples):
-                diff += 1
-                first_bad = first_bad or (i, "a silent block that is not", samples[:4])
-        continue
+        quiet = 0
+    else:
+        if amp[0] != 0 or abs(amp[1]) > (1 << 19):
+            quiet = 0
+        elif quiet < 32:
+            quiet += 1
+        if quiet >= 32:                              # the voice sleeps: digimono renders nothing,
+            if started:                              # the (empty) window stays silence
+                skipped += 1
+                if any(samples):
+                    diff += 1
+                    first_bad = first_bad or (i, "a silent block that is not", samples[:4])
+            continue
     if not started:
         continue
     k = [max(0, min(127, words[s - 17] >> 8)) for s in SLOTS]
     p = [0] * 7
-    if MODEL == H.NOIS:
-        p[0:3] = k[0:3]
-    elif MODEL == H.SAW:
-        p = [k[0], k[1], k[2], 0, k[3], k[4], k[5]]
-    elif MODEL == H.PULS:
-        p = [k[0], k[1], k[2], 0, k[3], k[4], k[5]]
-    elif MODEL == H.ENS:
-        p = [k[0], k[1], k[2], k[3], 64, k[4], k[5]]
-    elif MODEL == H.VO:
-        p = [k[0], k[1], k[2], 0, k[3], k[4], k[5]]
+    for i, j in enumerate(KNOB_P[MODEL]):
+        if j >= 0:
+            p[j] = k[i]
+    if MODEL == H.ENS:                               # PW on D: 0 = square .. 127 = thinnest
+        p[4] = 64 + (p[4] >> 1)
     pitch = note + ((words[0] - 16384) << 8)
     x = e.render(32, inc=H.LIB.mono_pitch_inc(pitch >> 9), params=p)
     want = [int(round(v * 32768)) << 16 for v in x]
@@ -306,9 +310,6 @@ if len(seg) == 48000 and np.max(np.abs(seg)) > 0:
     if MODEL == H.NOIS:                        # noise: sound, but no line at the note (the voice itself is
         c4 = near(261.63)                       # checked bit for bit above; the track's filter shapes the rest)
         check(c4 < -20, "the master mix carries noise, not a tone: %.1f dB near C4" % c4)
-    elif MODEL == H.VO:                        # a voice: its fundamental is the note's (the formants shape it)
-        pk = f[(f > 200) & (f < 330)][np.argmax(s[(f > 200) & (f < 330)])]
-        check(abs(1200 * math.log2(pk / 261.63)) < 20, "the master mix's fundamental near C4: %.1f Hz" % pk)
     elif MODEL == H.ENS:                       # oscillator 1 at the note and 2..4 at their PCH intervals
         _, kk = knobs.get("turned", knobs["defaults"])
         want = [0] + [max(-36, min(36, kk[i] - 63)) for i in range(3)]
@@ -316,9 +317,12 @@ if len(seg) == 48000 and np.max(np.abs(seg)) > 0:
         check(all(v > -30 for v in lv), "the master mix has C4 and the PCH intervals %s: %s dB"
               % (want[1:], ["%.1f" % v for v in lv]))
     else:
-        band = (f > 200) & (f < 330)
-        pk = f[band][np.argmax(s[band])]
-        check(abs(1200 * math.log2(pk / 261.63)) < 20, "the master mix's strongest partial near C4: %.1f Hz" % pk)
+        # The pitch the engine plays is the firmware's (note + TUNE + the kit's LFOs), checked bit for bit
+        # above; here: the trigs play C4, and the voice reaches the master.
+        notes = sorted(set(b[1] >> 16 for b in blocks if b[0] and b[4] == MACH_FIRST + MODEL))
+        rms = float(np.sqrt((seg ** 2).mean()))
+        check(notes == [60] and rms > 1e-3, "the trigs play note %s (C4 = 60), and the master carries the voice"
+              " (rms %.3f)" % (notes, rms))
 else:
     check(False, "the master mix carries sound")
 if WAV and len(mm):

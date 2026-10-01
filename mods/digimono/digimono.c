@@ -14,14 +14,31 @@ extern volatile uint8_t core_track_machine[8];                  /* core 2.1: the
 #define VOICE_NOTE   ((volatile const int32_t *)0x80001f28)   /* per voice: MIDI note << 16 */
 #define VOICE_WORDS  0x80002772                /* smoothed parameter words, 106 bytes a voice */
 #define BLOCK(v)     ((int32_t *)(0x80001a18 + 128 * (v)))   /* voice v's 32 samples, Q31 */
-#define VOICE_GAIN(v) (*(volatile const int32_t *)(0x8000edc4 + 94 * (v) + 16))   /* 0: not playing */
+/* The amp envelope's phase (0: idle) and level, per track, as the AMP stage leaves them (digisophie reads
+ * the same). Not the voice gain at 0x8000edc4 + 94 v + 16: that is LEV^2 x the track level, and LEV is
+ * knob H, an engine parameter here. */
+#define AMP_PHASE(v) (*(volatile const int32_t *)(0x4199df54 + 12 * (v)))
+#define AMP_LEVEL(v) (*(volatile const int32_t *)(0x4199df58 + 12 * (v)))
+#define QUIET_BLOCKS 32                      /* 21 ms of a silent envelope: the voice sleeps */
 
 #define SLOT_TUNE    17                        /* SRC knob A */
-static const uint8_t knob_slot[6] = {18, 19, 21, 22, 23, 24};  /* SRC knobs B, C, E, F, G, H */
+#define KNOBS        7
+static const uint8_t knob_slot[KNOBS] = {18, 19, 21, 22, 23, 24, 20};  /* SRC knobs B C E F G H, then D */
+
+/* Which engine parameter each knob (B C E F G H D) sets, or -1: the knob is not on the machine's page. */
+static const int8_t knob_p[MONO_MACHINES][KNOBS] = {
+    {-1, -1, -1, -1, -1, -1, -1},       /* SIN                                            */
+    { 0,  1,  2, -1, -1, -1, -1},       /* NOIS  ST RED STON                              */
+    { 0,  1,  2,  4,  5,  6, -1},       /* SAW   UNIL UNIW UNIX SUBX SUB1 SUB2            */
+    { 0,  1,  2,  4,  5,  6,  3},       /* PULS  UNIL UNIW SUB1 PW PWAD PWRS, D SUB2      */
+    { 0,  1,  2,  3,  5,  6,  4},       /* ENS   PCH2 PCH3 PCH4 WAVE CHRL CHRW, D PW      */
+    { 0,  1,  2,  4,  5,  6,  3},       /* VO    VOC1 VOC2 V-SW CONS CLEN CVOL, D VOIC    */
+};
 
 struct digimono_voice {
     struct mono_voice mv;
     uint8_t live;
+    uint8_t quiet;                          /* blocks the amp envelope has been silent; QUIET_BLOCKS: asleep */
 };
 static struct digimono_voice voices[8];
 
@@ -30,34 +47,21 @@ static int16_t word(int v, int slot)
     return *(volatile const int16_t *)(VOICE_WORDS + 106 * v + 2 * slot);
 }
 
-/* The engine's seven parameters from the six free SRC knobs (DESIGN.md, "The SRC page"). */
+/* The engine's seven parameters from the SRC knobs B..H (DESIGN.md, "The SRC page"). */
 static void params(int v, int model, uint8_t *p)
 {
-    uint8_t k[6];
     int i;
-    for (i = 0; i < 6; i++) {
-        int w = word(v, knob_slot[i]) >> 8;
-        k[i] = w < 0 ? 0 : w > 127 ? 127 : (uint8_t)w;
-    }
     for (i = 0; i < MONO_PARAMS; i++)
         p[i] = 0;
-    switch (model) {
-    case MONO_NOIS:
-        p[0] = k[0]; p[1] = k[1]; p[2] = k[2];
-        break;
-    case MONO_SAW:                              /* UNIL UNIW UNIX - SUBX SUB1 SUB2 */
-        p[0] = k[0]; p[1] = k[1]; p[2] = k[2]; p[4] = k[3]; p[5] = k[4]; p[6] = k[5];
-        break;
-    case MONO_PULS:                             /* UNIL UNIW SUB1 (SUB2) PW PWAD PWRS */
-        p[0] = k[0]; p[1] = k[1]; p[2] = k[2]; p[4] = k[3]; p[5] = k[4]; p[6] = k[5];
-        break;
-    case MONO_ENS:                              /* PCH2 PCH3 PCH4 WAVE (PW) CHRL CHRW */
-        p[0] = k[0]; p[1] = k[1]; p[2] = k[2]; p[3] = k[3]; p[4] = 64; p[5] = k[4]; p[6] = k[5];
-        break;
-    case MONO_VO:                               /* VOC1 VOC2 V-SW (VOIC) CONS CLEN CVOL */
-        p[0] = k[0]; p[1] = k[1]; p[2] = k[2]; p[3] = 0; p[4] = k[3]; p[5] = k[4]; p[6] = k[5];
-        break;
+    for (i = 0; i < KNOBS; i++) {
+        int w, j = knob_p[model][i];
+        if (j < 0)
+            continue;
+        w = word(v, knob_slot[i]) >> 8;
+        p[j] = w < 0 ? 0 : w > 127 ? 127 : (uint8_t)w;
     }
+    if (model == MONO_ENS)                  /* PW on D: 0 = square (the engine's 64) .. 127 = thinnest */
+        p[4] = (uint8_t)(64 + (p[4] >> 1));
 }
 
 static void digimono_block(int v)
@@ -77,11 +81,20 @@ static void digimono_block(int v)
         mono_init(&d->mv);
         d->mv.rng ^= (uint32_t)v * 0x9e3779b9u;
         d->live = 1;
+        d->quiet = QUIET_BLOCKS;
     }
-    if ((VOICE_START >> v) & 1)
+    if ((VOICE_START >> v) & 1) {
         mono_trig(&d->mv, model);
-    else if (VOICE_GAIN(v) == 0)
-        return;                             /* not started, or stopped: the stock block is silence already */
+        d->quiet = 0;
+    } else {
+        int32_t l = AMP_LEVEL(v);
+        if (AMP_PHASE(v) != 0 || (l < 0 ? -l : l) > (1 << 19))
+            d->quiet = 0;
+        else if (d->quiet < QUIET_BLOCKS)
+            d->quiet++;
+        if (d->quiet >= QUIET_BLOCKS)
+            return;                         /* asleep: the stock block is silence already */
+    }
     /* the pitch as the render computes a sample's: the note plus TUNE (after the LFOs), in Q16 semitones */
     pitch = VOICE_NOTE[v] + ((int32_t)(word(v, SLOT_TUNE) - 16384) << 8);
     params(v, model, p);
@@ -107,22 +120,33 @@ void digimono_blocks(void)
 typedef void (*fmt_t)(void *fmt, int32_t value, char *buf);
 #define FORMAT       ((fmt_t)0x40151cc2)
 
-/* the knobs: B C E F G H */
-static const char *const sname[MONO_MACHINES][6] = {
-    {"-",    "-",    "-",    "-",    "-",    "-"},
-    {"ST",   "RED",  "STON", "-",    "-",    "-"},
-    {"UNIL", "UNIW", "UNIX", "SUBX", "SUB1", "SUB2"},
-    {"UNIL", "UNIW", "SUB",  "PW",   "PWAD", "PWRS"},
-    {"PCH2", "PCH3", "PCH4", "WAVE", "CHRL", "CHRW"},
-    {"VOC1", "VOC2", "V-SW", "CONS", "CLEN", "CVOL"},
+/* the knobs: B C E F G H D ("-": not on the page) */
+static const char *const sname[MONO_MACHINES][KNOBS] = {
+    {"-",    "-",    "-",    "-",    "-",    "-",    "-"},
+    {"ST",   "RED",  "STON", "-",    "-",    "-",    "-"},
+    {"UNIL", "UNIW", "UNIX", "SUBX", "SUB1", "SUB2", "-"},
+    {"UNIL", "UNIW", "SUB1", "PW",   "PWAD", "PWRS", "SUB2"},
+    {"PCH2", "PCH3", "PCH4", "WAVE", "CHRL", "CHRW", "PW"},
+    {"VOC1", "VOC2", "V-SW", "CONS", "CLEN", "CVOL", "VOIC"},
 };
-static const char *const lname[MONO_MACHINES][6] = {
-    {"-", "-", "-", "-", "-", "-"},
-    {"Sample Hold", "Red Noise", "Tuned Noise", "-", "-", "-"},
-    {"Unison Level", "Unison Width", "Unison Voices", "Sub Shape", "Sub 1 Oct", "Sub 2 Oct"},
-    {"Unison Level", "Unison Width", "Sub 1 Oct", "Pulse Width", "PWM Depth", "PWM Rate"},
-    {"Pitch 2", "Pitch 3", "Pitch 4", "Saw-Pulse", "Chorus Level", "Chorus Width"},
-    {"Vowel 1", "Vowel 2", "Vowel Glide", "Consonant", "Cons. Length", "Cons. Level"},
+static const char *const lname[MONO_MACHINES][KNOBS] = {
+    {"-", "-", "-", "-", "-", "-", "-"},
+    {"Sample Hold Rate", "Red Noise", "Tuned Noise", "-", "-", "-", "-"},
+    {"Unison Level", "Unison Detune", "Unison Voices", "Sub Shape", "Sub 1 Oct Lev", "Sub 2 Oct Lev", "-"},
+    {"Unison Level", "Unison Detune", "Sub 1 Oct Lev", "Pulse Width", "PWM Depth", "PWM Rate", "Sub 2 Oct Lev"},
+    {"Pitch Osc 2", "Pitch Osc 3", "Pitch Osc 4", "Saw-Pulse", "Chorus Level", "Chorus Width", "Pulse Width"},
+    {"Vowel 1", "Vowel 2", "Vowel Glide", "Consonant", "Cons. Length", "Cons. Level", "Breath"},
+};
+
+/* how each knob's value reads */
+enum { F_NUM, F_VOICES, F_SEMI, F_PW, F_PWENS, F_VOWEL, F_CONS, F_MS, F_SHAPE };
+static const uint8_t knob_fmt[MONO_MACHINES][KNOBS] = {
+    {F_NUM, F_NUM, F_NUM, F_NUM, F_NUM, F_NUM, F_NUM},
+    {F_NUM, F_NUM, F_NUM, F_NUM, F_NUM, F_NUM, F_NUM},
+    {F_NUM, F_NUM, F_VOICES, F_SHAPE, F_NUM, F_NUM, F_NUM},
+    {F_NUM, F_NUM, F_NUM, F_PW, F_NUM, F_NUM, F_NUM},
+    {F_SEMI, F_SEMI, F_SEMI, F_SHAPE, F_NUM, F_NUM, F_PWENS},
+    {F_VOWEL, F_VOWEL, F_NUM, F_CONS, F_MS, F_NUM, F_NUM},
 };
 
 /* The active track's Digi Mono model, or -1. */
@@ -137,24 +161,41 @@ static int active_model(void)
     return (unsigned)m < MONO_MACHINES ? m : -1;
 }
 
-/* A SLICE page id -> our knob 0..5 (B C E F G H), or -1 (A = TUNE, D = SAMP, anything else). */
+/* A SLICE page id -> our knob 0..6 (B C E F G H D), or -1 (A = TUNE, anything else). */
 static int knob_of(uint32_t id)
 {
-    static const int8_t k[7] = {0, 1, -1, 2, 3, 4, 5};
+    static const int8_t k[7] = {0, 1, 6, 2, 3, 4, 5};      /* ids 0x85..0x8b: B C D E F G H */
     return id >= SLICE_ID_B && id < SLICE_ID_B + 7 ? k[id - SLICE_ID_B] : -1;
+}
+
+/* The knob of id on the active Digi Mono page, if the machine has it there; else -1. */
+static int our_knob(uint32_t id, int *model)
+{
+    int m = active_model(), k = knob_of(id);
+    if (m < 0 || k < 0 || knob_p[m][k] < 0)
+        return -1;
+    *model = m;
+    return k;
+}
+
+int digimono_ours(uint32_t id)
+{
+    int m;
+    return our_knob(id, &m) >= 0;
 }
 
 const char *digimono_name(uint32_t id, int shortname)
 {
-    int m = active_model(), k = knob_of(id);
-    if (m < 0 || k < 0)
+    int m, k = our_knob(id, &m);
+    if (k < 0)
         return 0;
     return shortname ? sname[m][k] : lname[m][k];
 }
 
 int digimono_range(uint32_t id, int32_t *out)
 {
-    if (active_model() < 0 || knob_of(id) < 0)
+    int m;
+    if (our_knob(id, &m) < 0)
         return 0;
     out[0] = 0;
     out[1] = 127 << 8;
@@ -166,24 +207,118 @@ int digimono_range(uint32_t id, int32_t *out)
 static const char *const vowel_name[10] = {"OO", "U", "AW", "AH", "UH", "AE", "EH", "IH", "EE", "ER"};
 static const char *const cons_name[8] = {"-", "S", "SH", "F", "H", "T", "K", "P"};
 
+static char *put_s(char *o, const char *t)
+{
+    while ((*o = *t++))
+        o++;
+    return o;
+}
+
+static char *put_u(char *o, uint32_t n)
+{
+    char d[10];
+    int i = 0;
+    do {
+        d[i++] = (char)('0' + n % 10);
+        n /= 10;
+    } while (n);
+    while (i)
+        *o++ = d[--i];
+    *o = 0;
+    return o;
+}
+
+/* A knob's value v (0..127) as text: units where it has them. */
+static void text_into(int m, int k, int v, char *buf)
+{
+    char *o = buf;
+    switch (knob_fmt[m][k]) {
+    case F_VOICES:                          /* mono.c render_saw: 1 to 3 unison saws */
+        o = put_u(o, v < 43 ? 1 : v < 86 ? 2 : 3);
+        put_s(o, v < 43 ? " SAW" : " SAWS");
+        break;
+    case F_SEMI: {                          /* render_ens: 63 = the main oscillator's pitch */
+        int s = v - 63;
+        s = s < -36 ? -36 : s > 36 ? 36 : s;
+        if (s > 0)
+            *o++ = '+';
+        if (s < 0) {
+            *o++ = '-';
+            s = -s;
+        }
+        o = put_u(o, (uint32_t)s);
+        put_s(o, "st");
+        break;
+    }
+    case F_PW:                              /* duty(): 50 % at 64, 0.763 % a step */
+        o = put_u(o, (uint32_t)((50 * 131 + (v - 64) * 100 + 65) / 131));
+        put_s(o, "%");
+        break;
+    case F_PWENS:                           /* D 0..127 -> the engine's 64..127 */
+        v = 64 + (v >> 1);
+        o = put_u(o, (uint32_t)((50 * 131 + (v - 64) * 100 + 65) / 131));
+        put_s(o, "%");
+        break;
+    case F_VOWEL:
+        put_s(o, vowel_name[(v * 9 * 2 + 127) / 254]);
+        break;
+    case F_CONS:
+        put_s(o, cons_name[v >> 4]);
+        break;
+    case F_MS:                              /* render_vo: CLEN 96 + v^2 x 1188 / 1024 samples */
+        o = put_u(o, (uint32_t)((96 + ((v * v * 1188) >> 10)) / 48));
+        put_s(o, "ms");
+        break;
+    case F_SHAPE:                           /* SUBX square..saw, WAVE saw..pulse: a mix, in % */
+        o = put_u(o, (uint32_t)((v * 100 + 63) / 127));
+        put_s(o, "%");
+        break;
+    default:
+        put_u(o, (uint32_t)v);
+    }
+}
+
+/* The value pop-up's text (0x400657ee's callers): FMT_BUF, as the firmware's own. */
 char *digimono_text(uint32_t id, int32_t value)
 {
-    int m = active_model(), k = knob_of(id), v = (value >> 8) & 0x7f;
-    const char *t = 0;
-    if (m < 0 || k < 0)
+    int m, k = our_knob(id, &m);
+    if (k < 0)
         return 0;
-    if (m == MONO_VO && k <= 1)
-        t = vowel_name[(v * 9 * 2 + 127) / 254];
-    else if (m == MONO_VO && k == 3)
-        t = cons_name[v >> 4];
-    if (t) {
-        char *o = FMT_BUF;
-        while ((*o++ = *t++))
-            ;
-        return FMT_BUF;
-    }
-    FORMAT(FMT_INT, value, FMT_BUF);
+    text_into(m, k, (value >> 8) & 0x7f, FMT_BUF);
     return FMT_BUF;
+}
+
+/* A knob's value under it while it turns (0x4000f324, through digichain): into buf; 0 if not ours. */
+int digimono_knob_text(uint32_t id, int32_t value, char *buf)
+{
+    int m, k = our_knob(id, &m);
+    if (k < 0)
+        return 0;
+    text_into(m, k, (value >> 8) & 0x7f, buf);
+    return 1;
+}
+
+/* The SRC page's layout for a Digi Mono machine (0x400657cc, through digichain): SLICE's, with the
+ * knobs the machine does not have emptied (id 0), so they show nothing and turn nothing. 0: not ours. */
+#define LAY_SLICE    ((const uint32_t *)0x4197cf5c)    /* 44 bytes; the knobs' ids at +8 (A..H) */
+static uint32_t lay[MONO_MACHINES][11];
+static uint8_t lay_ok[MONO_MACHINES];
+
+uint32_t *digimono_layout_for(uint32_t machine)
+{
+    static const uint8_t at[KNOBS] = {3, 4, 6, 7, 8, 9, 5};   /* B C E F G H D: longs at +12 .. +36 */
+    int m = (int)machine - MACH_FIRST, i;
+    if ((unsigned)m >= MONO_MACHINES)
+        return 0;
+    if (!lay_ok[m]) {
+        for (i = 0; i < 11; i++)
+            lay[m][i] = LAY_SLICE[i];
+        for (i = 0; i < KNOBS; i++)
+            if (knob_p[m][i] < 0)
+                lay[m][at[i]] = 0;
+        lay_ok[m] = 1;
+    }
+    return lay[m];
 }
 
 /* ---- defaults on a switch ------------------------------------------------------------------------ */
@@ -198,13 +333,13 @@ typedef void (*setparam_t)(int32_t value, int32_t voice, int32_t slot);
 #define SETPARAM     ((setparam_t)0x400771e8)
 
 static const uint16_t oneshot_def[6] = {0x0300, 0x0000, 0x0000, 0x7800, 0x0000, 0x6400};  /* B C E F G H */
-static const uint8_t mono_def[MONO_MACHINES][6] = {
-    {0, 0, 0, 0, 0, 0},                 /* SIN                                   */
-    {0, 0, 0, 0, 0, 0},                 /* NOIS  ST RED STON                     */
-    {0, 40, 0, 0, 0, 0},                /* SAW   UNIL UNIW UNIX SUBX SUB1 SUB2   */
-    {0, 40, 0, 64, 0, 40},              /* PULS  UNIL UNIW SUB PW PWAD PWRS      */
-    {63, 63, 63, 0, 0, 127},            /* ENS   PCH2 PCH3 PCH4 WAVE CHRL CHRW   */
-    {43, 113, 64, 0, 40, 100},          /* VO    VOC1 (AH) VOC2 (EE) V-SW CONS CLEN CVOL */
+static const uint8_t mono_def[MONO_MACHINES][KNOBS] = {   /* B C E F G H D */
+    {0, 0, 0, 0, 0, 0, 0},              /* SIN                                         */
+    {0, 0, 0, 0, 0, 0, 0},              /* NOIS  ST RED STON                           */
+    {0, 40, 0, 0, 0, 0, 0},             /* SAW   UNIL UNIW UNIX SUBX SUB1 SUB2         */
+    {0, 40, 0, 64, 0, 40, 0},           /* PULS  UNIL UNIW SUB1 PW PWAD PWRS, SUB2     */
+    {63, 63, 63, 0, 0, 127, 0},         /* ENS   PCH2 PCH3 PCH4 WAVE CHRL CHRW, PW (square) */
+    {43, 113, 64, 0, 40, 100, 0},       /* VO    VOC1 (AH) VOC2 (EE) V-SW CONS CLEN CVOL, VOIC */
 };
 
 static const uint8_t *seen_kit;
@@ -220,10 +355,10 @@ static int switch_defaults(const uint8_t *snd, int prev)
 {
     int i, pm = prev - MACH_FIRST;
     if ((unsigned)pm < MONO_MACHINES) {
-        for (i = 0; i < 6; i++)
+        for (i = 0; i < KNOBS; i++)
             if (knobw(snd, i) != (uint16_t)(mono_def[pm][i] << 8))
                 break;
-        if (i == 6)
+        if (i == KNOBS)
             return 1;
     }
     for (i = 2; i < 6; i++)                 /* a stock switch resets E..H; B and C it leaves or clears */
@@ -254,7 +389,7 @@ void digimono_tick(void *ctrl)
         m -= MACH_FIRST;
         if ((unsigned)m >= MONO_MACHINES || !switch_defaults(snd, prev))
             continue;
-        for (i = 0; i < 6; i++) {
+        for (i = 0; i < KNOBS; i++) {
             int32_t w = (int32_t)mono_def[m][i] << 8;
             *(uint16_t *)(snd + 0x14 + 2 * knob_slot[i]) = (uint16_t)w;
             SETPARAM(w, t, knob_slot[i]);

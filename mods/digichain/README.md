@@ -29,6 +29,9 @@ handler of the machine it is for:
 - **ranges:** the machine of the sound the lookup is for, found from the object as the mods find it;
 - **the render step:** SOPHIE's voices, then NEIGHBOR's (so NEIGHBOR can take a SOPHIE track's sound).
 
+Digi Mono (machines 20..25, 1.1) gets its page's layout, knob graphics, UI records and knob values through
+it too; Digi Mono requires digichain.
+
 The handlers are the mods' own code, unchanged. `tools/chain_patch.py` moves their sites for those
 places out of their `mod.json` when `tools/dev.sh` builds them, adds digichain to what they require and
 `-chain` to their version. It refuses (and the mod is built as it is) unless every site is exactly the

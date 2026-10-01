@@ -1,6 +1,7 @@
 | SPDX-License-Identifier: MIT
 | digichain: one owner for the SRC-page and render sites that SOPHIE (digisophie), NEIGHBOR
-| (digineighbor) and DIGISLICER (digislicer) each patch, so the three combine.
+| (digineighbor) and DIGISLICER (digislicer) each patch, so the three combine. Digi Mono (20..25) gets
+| its page's layout, knob graphics, UI records and knob values through it too.
 | ColdFire V4e, Digitakt mk1 OS 1.53.
 |
 | Each of those mods takes over the same firmware functions and acts only for its own machine
@@ -17,6 +18,8 @@
         .equ    M_NBR, 4                | NEIGHBOR
         .equ    M_DSL, 5                | DIGISLICER
         .equ    M_SOPH, 7               | SOPHIE
+        .equ    M_MONO, 20              | Digi Mono: 20..25
+        .equ    M_MONO_LAST, 25
 
         .section .bss
         .balign 4
@@ -31,6 +34,23 @@ digichain_page_m:   .skip 4
         moveq   #\m, %d0
         cmp.l   digichain_page_m, %d0
         bne.s   1f
+        move.l  #\fn, %d1
+        cmpi.l  #core_zero, %d1
+        beq.s   1f
+        movea.l %d1, %a1
+        jmp     (%a1)
+1:
+        .endm
+
+| jmp to \fn when the page's machine is \lo..\hi and \fn is in the build; else on to the next line.
+        .macro  ROUTE_IN lo, hi, fn
+        move.l  digichain_page_m, %d0
+        moveq   #\lo, %d1
+        cmp.l   %d1, %d0
+        bcs.s   1f
+        moveq   #\hi, %d1
+        cmp.l   %d1, %d0
+        bhi.s   1f
         move.l  #\fn, %d1
         cmpi.l  #core_zero, %d1
         beq.s   1f
@@ -66,6 +86,7 @@ digichain_layout:
         move.l  %d0, digichain_page_m
         ROUTE   M_SOPH, ds_layout
         ROUTE   M_NBR, nb_layout
+        ROUTE_IN M_MONO, M_MONO_LAST, digimono_layout
         move.l  4(%sp), %d0
         moveq   #3, %d1
         jmp     0x400657d2
@@ -93,6 +114,7 @@ digichain_lab_long:
 digichain_val_text:
         ROUTE   M_SOPH, ds_val_text
         ROUTE   M_NBR, nb_val_text
+        ROUTE_IN M_MONO, M_MONO_LAST, digimono_val_text
         lea     -20(%sp), %sp
         movem.l %d2-%d4/%a2-%a3, (%sp)
         jmp     0x4000f32c
@@ -103,6 +125,7 @@ digichain_val_text:
 digichain_knob_gfx:
         ROUTE   M_SOPH, ds_knob_gfx
         ROUTE   M_NBR, nb_knob_gfx
+        ROUTE_IN M_MONO, M_MONO_LAST, digimono_knob_gfx
         lea     -20(%sp), %sp
         movem.l %d2-%d6, (%sp)
         jmp     0x4000f2c4
@@ -112,6 +135,7 @@ digichain_knob_gfx:
 digichain_ui_rec:
         ROUTE   M_SOPH, ds_ui_rec
         ROUTE   M_NBR, nb_ui_rec
+        ROUTE_IN M_MONO, M_MONO_LAST, digimono_ui_rec
         move.l  4(%sp), %d1
         cmpi.l  #164, %d1
         jmp     0x4006579e

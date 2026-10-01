@@ -179,7 +179,7 @@ cmd_build() {
             *) die "unknown mod: $m" ;;
         esac
     done
-    if printf '%s\n' "${files[@]}" | grep -q -- '-chain\.elemod$' && ! printf '%s\n' "${mods[@]}" | grep -qx digichain; then
+    if printf '%s\n' "${files[@]}" | grep -qE -- '(-chain|/digimono-[^/]*)\.elemod$' && ! printf '%s\n' "${mods[@]}" | grep -qx digichain; then
         files+=("$(build_one digichain "$ROOT/mods/digichain")")   # what the chained builds need
     fi
     for f in "${files[@]}"; do echo "  $(basename "$f")"; done

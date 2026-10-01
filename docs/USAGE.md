@@ -144,21 +144,24 @@ One page, one band per column (bands 1-4 = knobs A/E, B/F, C/G, D/H):
   after a while.
 - A band at 0 dB (bell/shelf) costs nothing; four active bands cost about 5 % of the audio time (see RISKS.md).
 
-## Digi Mono (elekloader mod `digimono`, 0.6)
+## Digi Mono (elekloader mod `digimono`, 0.7; needs digichain, ticked with it)
 - **Pick a machine:** FUNC+SRC on an audio track, then scroll past SLICE (and past any other mod's machines):
   MONO SIN, MONO NOISE, MONO SAW, MONO PULSE, MONO ENS, MONO VO. YES to confirm. The track needs no sample.
 - **Play it:** from trigs, the track key, the keyboard (FUNC+TRK) or MIDI, like a sample track. The note
   and knob A (TUNE) set the pitch.
-- **SRC page:** knob A is TUNE and knob D is the (unused) sample slot. The other six are the machine's:
+- **SRC page:** knob A is TUNE. B to H are the machine's; a knob it does not have is blank. Each shows its
+  name, a plain knob and its value in its units (the pop-up gives the long name):
 
-  | machine | B | C | E | F | G | H |
-  |---|---|---|---|---|---|---|
-  | SIN   | - | - | - | - | - | - |
-  | NOISE | ST (sample and hold) | RED (darker) | STON (pitched) | - | - | - |
-  | SAW   | UNIL (unison level) | UNIW (detune) | UNIX (1-3 unison saws) | SUBX (sub square..saw) | SUB1 (-1 oct) | SUB2 (-2 oct) |
-  | PULSE | UNIL | UNIW | SUB (-1 oct) | PW (64 = square) | PWAD (PWM depth) | PWRS (PWM rate) |
-  | ENS   | PCH2 | PCH3 | PCH4 (63 = same pitch, 1 = a semitone) | WAVE (saw..pulse) | CHRL (chorus level) | CHRW (chorus width) |
-  | VO    | VOC1 (vowel: OO U AW AH UH AE EH IH EE ER) | VOC2 | V-SW (glide VOC1 -> VOC2; 0 = VOC1 only) | CONS (- S SH F H T K P) | CLEN (consonant length) | CVOL (consonant level) |
+  | machine | B | C | D | E | F | G | H |
+  |---|---|---|---|---|---|---|---|
+  | SIN   | - | - | - | - | - | - | - |
+  | NOISE | ST (sample and hold rate) | RED (darker) | - | STON (pitched) | - | - | - |
+  | SAW   | UNIL (unison level) | UNIW (detune) | - | UNIX (1-3 saws) | SUBX (sub square..saw, %) | SUB1 (-1 oct) | SUB2 (-2 oct) |
+  | PULSE | UNIL | UNIW | SUB2 (-2 oct) | SUB1 (-1 oct) | PW (duty %) | PWAD (PWM depth) | PWRS (PWM rate) |
+  | ENS   | PCH2 (semitones) | PCH3 | PW (duty %, 0 = square) | PCH4 | WAVE (saw..pulse, %) | CHRL (chorus level) | CHRW (chorus width) |
+  | VO    | VOC1 (vowel: OO U AW AH UH AE EH IH EE ER) | VOC2 | VOIC (breath) | V-SW (glide VOC1 -> VOC2; 0 = VOC1 only) | CONS (- S SH F H T K P) | CLEN (ms) | CVOL (consonant level) |
+
+  The volume is the track's: LEVEL, the AMP page and VOL. D does not open the sample list on these machines.
 
 - **Everything else works as usual:** the FLTR, AMP and LFO pages, p-locks, parameter locks on these
   knobs, the sends and the track level.

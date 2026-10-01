@@ -3,6 +3,19 @@
 "Unit shows" = the version string displayed on the unit. HW = tested on real hardware by the owner.
 All builds change only the MAIN OS section; bootloader, updater, I/O firmware and metadata stay official.
 
+## Digi Mono 0.7, digichain 1.1 (HW: not yet)
+- **The SRC page says what each knob does.** Every knob a machine has gets its name, a plain round knob
+  (not ONESHOT's PLAY, SAMP or LEV controls under it) and its value in its units: voices, semitones, duty %,
+  mix %, ms, vowel and consonant names. Knobs a machine does not have are blank.
+- **D and H are engine knobs.** D was the sample slot: it now carries PULSE's SUB2, ENS's pulse width and
+  VO's breath (until now not on any knob), and no longer opens the sample list. H was the sample level,
+  which also switched the voice off at 0: the voice now follows its amp envelope, and its level is the
+  track's LEVEL.
+- Digi Mono needs digichain (ticked with it); digichain 1.1 routes Digi Mono pages too.
+- Checked in digiemu: all six machines bit for bit against the engine with D and H turned; each page's names
+  and values; the sample list still opens on a ONESHOT track; SOPHIE's and NEIGHBOR's pages unchanged.
+- Projects from 0.6: a PULSE, ENS or VO track's D holds the sample slot it had (often 0), now that parameter.
+
 ## digichain 1.0 (HW: not yet)
 - New mod **digichain**: SOPHIE (digisophie), NEIGHBOR (digineighbor) and DIGISLICER (digislicer) now
   combine. It owns the SRC-page and render places they each patched and sends each call to the mod whose

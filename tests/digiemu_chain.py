@@ -29,6 +29,7 @@ ap.add_argument("--blocks", default="", help="tracks whose voice block to record
                 " render step at 0x40077fba (SOPHIE's and NEIGHBOR's): DIR/blocks.json")
 ap.add_argument("--set", default="", help="track:slot:value words written into the tracks' sounds before playing,"
                 " as a loaded kit would have them (e.g. 2:21:256: NEIGHBOR's SLOT = 1)")
+ap.add_argument("--settle", type=int, default=0, help="steps to wait on each SRC page before its screenshot")
 ap.add_argument("--out", required=True)
 a = ap.parse_args()
 
@@ -97,14 +98,14 @@ for track, index in TRACKS:
         tap(DOWN, 20, 60)
     tap(YES, 20, 80); tap(NO, 20, 60)
     tap(SRC, 20, 120)                               # its SRC page
-    at(0, "snap", "t%d_page" % track)
+    at(a.settle, "snap", "t%d_page" % track)
     for tt, k, n in TURNS:
         if tt and tt != track:
             continue
         for _ in range(abs(n)):
             at(3, "encoder", 1 + "ABCDEFGH".index(k), 4 if n > 0 else -4)
         at(25, "snap", "t%d_%s" % (track, k))
-        at(80, "wait")
+        at(80 + a.settle, "wait")
 at(0, "machines")
 
 

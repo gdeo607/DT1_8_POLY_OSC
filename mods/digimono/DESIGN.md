@@ -52,17 +52,28 @@ own Monomachine OS file (`tools/mono_render.py` has the A/B commands).
 The engine takes seven parameters, `p[0..6]`: the Monomachine SYN page's first seven knobs, raw 0..127.
 TUNE (its eighth) is the Digitakt's own SRC TUNE.
 
-On the Digitakt, knob A stays TUNE and D stays SAMP (the sample slot, unused by these machines). The six
-other SRC knobs carry the parameters, 0..127, under the machine's own names:
+On the Digitakt, knob A stays TUNE. B to H carry the parameters, 0..127, under the machine's own names;
+a knob the machine does not have is blank (no name, no knob, turns nothing). Every knob is drawn as a plain
+round knob and its value reads in its units (0.7):
 
-| machine | B | C | E | F | G | H | not on a knob |
+| machine | B | C | D | E | F | G | H |
 |---|---|---|---|---|---|---|---|
-| SIN   | - | - | - | - | - | - | |
-| NOISE | ST | RED | STON | - | - | - | |
-| SAW   | UNIL | UNIW | UNIX | SUBX | SUB1 | SUB2 | |
-| PULSE | UNIL | UNIW | SUB | PW | PWAD | PWRS | SUB2 (0) |
-| ENS   | PCH2 | PCH3 | PCH4 | WAVE | CHRL | CHRW | PW (64 = square) |
-| VO    | VOC1 | VOC2 | V-SW | CONS | CLEN | CVOL | VOIC (0: fully voiced) |
+| SIN   | - | - | - | - | - | - | - |
+| NOISE | ST | RED | - | STON | - | - | - |
+| SAW   | UNIL | UNIW | - | UNIX (`1 SAW`..`3 SAWS`) | SUBX (%) | SUB1 | SUB2 |
+| PULSE | UNIL | UNIW | SUB2 | SUB1 | PW (duty %) | PWAD | PWRS |
+| ENS   | PCH2 (`+7st`) | PCH3 | PW (duty %, 0 = square) | PCH4 | WAVE (%) | CHRL | CHRW |
+| VO    | VOC1 (vowel) | VOC2 | VOIC (Breath) | V-SW | CONS (`S`, `SH`..) | CLEN (ms) | CVOL |
+
+D is the sample slot underneath (SAMP) and H the sample level (LEV); neither means anything for these
+machines, so both carry parameters:
+
+- **D:** turning SAMP opens the sample list; on a Digi Mono page it doesn't (two compares in the knob
+  handler answer "not SAMP" there), and D turns like any knob.
+- **H:** the firmware's voice gain is LEV^2 x the track's level, and 0.6 used "gain 0" as "the voice is not
+  playing", so H at 0 cut the voice and anything else played it at full level. 0.7 asks the amp envelope
+  instead (`0x4199df54` phase, `0x4199df58` level, + 12 v, as digisophie does): a voice sleeps after 32
+  blocks of a silent envelope. Its level is the track's LEVEL and the AMP page, as for any track.
 
 A switch to a Digi Mono machine sets that machine's defaults. For ENS these are the Monomachine's: PCH2-4
 at 63, the same pitch.
@@ -117,13 +128,17 @@ What each parameter does, as this engine reads the manual:
     in Q16 semitones. The render computes a sample's rate from the same inputs, so note locks, TUNE locks
     and pitch LFOs work. The knob words are the smoothed ones after the LFO stage
     (`0x80002772 + 106 v`), so LFOs and p-locks reach them too.
-  - **A voice not playing** (its gain `0x8000edc4 + 94 v + 16` at 0, no start) is not rendered.
+  - **A voice not playing** (no start, and its amp envelope idle and below 2^19 for 32 blocks) is not
+    rendered (0.7; 0.6 used the voice gain, which knob H, LEV underneath, sets to 0).
 - **SRC page:** machines past the stock four get SLICE's page (parameter ids 0x84..0x8b). While the
-  active track plays a Digi Mono machine, four entry hooks give B, C, E, F, G and H its values:
-  - the short name, `0x4000fe8a`;
-  - the long name, `0x4000feac`;
+  active track plays a Digi Mono machine, B..H get:
+  - the short and long names, at the callers of `0x4000fe8a` / `0x4000feac`;
   - a 0..127 range, `0x40078f0c`;
-  - plain numbers, `0x400657ee`.
+  - the pop-up's value text, at the callers of `0x400657ee`;
+  - through digichain (0.7, which owns those entries): the layout `0x400657cc` (knobs it does not have
+    emptied), the knob graphic `0x4000f2bc` and UI record `0x40065794` (BR's), the value under a turning
+    knob `0x4000f324`;
+  - no sample list for D: `0x4003b5b2` and `0x4003b314` (`cmpi.l #135`, SAMP's id), by jsr.
 - **Defaults:** `ev_tick` watches the UI kit for a switch.
 
 ## Verified

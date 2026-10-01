@@ -1,6 +1,6 @@
 {
  "id": "digimono",
- "version": "0.6",
+ "version": "0.7",
  "title": "Digi Mono",
  "category": "Sound",
  "author": "gdeo607",
@@ -67,6 +67,18 @@
    "stock": "4eb9400657ee",
    "op": "keep2",
    "target": "digimono_vtext"
+  },
+  {
+   "addr": "0x4003b314",
+   "stock": "0c8000000087",
+   "op": "jsr",
+   "target": "digimono_samp_d0"
+  },
+  {
+   "addr": "0x4003b5b2",
+   "stock": "0c8200000087",
+   "op": "jsr",
+   "target": "digimono_samp_d2"
   }
  ],
  "contribute": [
@@ -150,7 +162,8 @@
   }
  ],
  "requires": [
-  "core"
+  "core",
+  "digichain"
  ],
  "resources": {
   "names": [

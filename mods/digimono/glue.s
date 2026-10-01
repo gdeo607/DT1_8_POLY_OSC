@@ -52,9 +52,72 @@ digimono_rblock:
 
 | ---------------- the SRC page: names, ranges and values of a Digi Mono track's knobs ----------------
 | Machines past the stock four get SLICE's SRC page (core 2.1): parameter ids 0x84..0x8b, knobs A..H.
-| While the active track plays a Digi Mono machine, digimono.c gives B, C, E, F, G and H its own names,
-| a 0..127 range and plain numbers (digimono_name, digimono_range, digimono_text return 0 otherwise, and
-| the stock code runs as it was). A (TUNE) and D (SAMP) stay as they are.
+| While the active track plays a Digi Mono machine, digimono.c gives the knobs B..H its machine has their
+| own names, a 0..127 range and values with their units (digimono_name, digimono_range, digimono_text
+| return 0 otherwise, and the stock code runs as it was). A stays TUNE.
+|
+| The page's layout, the knobs' graphics, their UI records and the value under a turning knob are
+| reached through digichain (mods/digichain), which owns those functions and jumps here, at their entry
+| state, when the page is a Digi Mono machine's (20..25): the layout empties the knobs a machine does not
+| have; every knob it has is drawn as BR's (a plain round knob, a value 0..127) with its own text.
+        .equ    P_BR, 0x86
+
+| 0x400657cc(machine) -> the layout (was: moveq #3,d1 ; move.l 4(sp),d0)
+        .globl  digimono_layout
+digimono_layout:
+        move.l  4(%sp), -(%sp)
+        jsr     digimono_layout_for
+        addq.l  #4, %sp
+        tst.l   %d0
+        beq.s   1f
+        rts
+1:      move.l  4(%sp), %d0
+        moveq   #3, %d1
+        jmp     0x400657d2
+
+| 0x4000f2bc(obj, id, value, ...): a knob's graphic (was: lea -20(sp),sp ; movem.l d2-d6,(sp))
+        .globl  digimono_knob_gfx
+digimono_knob_gfx:
+        move.l  8(%sp), -(%sp)
+        jsr     digimono_ours
+        addq.l  #4, %sp
+        tst.l   %d0
+        beq.s   1f
+        move.l  #P_BR, %d0
+        move.l  %d0, 8(%sp)             | drawn as BR's knob
+1:      lea     -20(%sp), %sp
+        movem.l %d2-%d6, (%sp)
+        jmp     0x4000f2c4
+
+| 0x40065794(id): a parameter's UI record (was: move.l 4(sp),d1 ; cmpi.l #164,d1)
+        .globl  digimono_ui_rec
+digimono_ui_rec:
+        move.l  4(%sp), -(%sp)
+        jsr     digimono_ours
+        addq.l  #4, %sp
+        move.l  4(%sp), %d1
+        tst.l   %d0
+        beq.s   1f
+        move.l  #P_BR, %d1              | BR's: a plain knob, a fine step, a number
+1:      cmpi.l  #164, %d1
+        jmp     0x4006579e
+
+| 0x4000f324(obj, id, value, buf): the value under a turning knob
+| (was: lea -20(sp),sp ; movem.l d2-d4/a2-a3,(sp))
+        .globl  digimono_val_text
+digimono_val_text:
+        move.l  16(%sp), -(%sp)         | buf
+        move.l  16(%sp), -(%sp)         | value
+        move.l  16(%sp), -(%sp)         | id
+        jsr     digimono_knob_text
+        lea     12(%sp), %sp
+        tst.l   %d0
+        beq.s   1f
+        move.l  16(%sp), %d0            | -> buf, as the stock function returns it
+        rts
+1:      lea     -20(%sp), %sp
+        movem.l %d2-%d4/%a2-%a3, (%sp)
+        jmp     0x4000f32c
 
 | They are reached through their callers, not their entries, so that another mod (digisophie) can own
 | the entries: a caller's jsr is pointed here, and anything not ours goes on to the function as before.
@@ -111,3 +174,43 @@ digimono_vtext:
         bne.s   1f
         jmp     0x400657ee
 1:      rts
+
+| Turning SAMP (D) opens the sample list: the SRC page's knob handlers compare the turned knob's id with
+| SAMP's and, when it is, open the list (0x4003af46) instead of changing the value. On a Digi Mono page D
+| is an engine knob: by jsr, the compare answers "not SAMP" there (Z clear), so the knob takes the
+| ordinary path, and as it was anywhere else. The compared register is kept, and every other one but d1
+| (which the next instructions load before they read it).
+|   0x4003b5b2: cmpi.l #135,d2 (the turn)       0x4003b314: cmpi.l #135,d0
+        .globl  digimono_samp_d0, digimono_samp_d2
+digimono_samp_d0:
+        cmpi.l  #0x87, %d0
+        bne.s   9f                      | not SAMP: Z clear, as the compare leaves it
+        bsr.s   digimono_samp_ours
+        beq.s   1f
+        tst.l   %d0                     | ours: d0 = 0x87, so Z clear: no sample list
+        rts
+1:      cmpi.l  #0x87, %d0              | SAMP's own: Z set, the list opens as before
+9:      rts
+
+digimono_samp_d2:
+        cmpi.l  #0x87, %d2
+        bne.s   9f
+        bsr.s   digimono_samp_ours
+        beq.s   1f
+        tst.l   %d2
+        rts
+1:      cmpi.l  #0x87, %d2
+9:      rts
+
+| -> Z clear when D is one of the active Digi Mono page's knobs. Keeps every register but d1.
+digimono_samp_ours:
+        lea     -12(%sp), %sp
+        movem.l %d0/%a0-%a1, (%sp)
+        pea     0x87.w
+        jsr     digimono_ours
+        addq.l  #4, %sp
+        move.l  %d0, %d1
+        movem.l (%sp), %d0/%a0-%a1
+        lea     12(%sp), %sp
+        tst.l   %d1
+        rts

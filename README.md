@@ -124,6 +124,18 @@ python3 tools/build.py --official <official OS 1.53 .syx> --tool <path to the co
 The build refuses any input that is not the exact official OS 1.53 file and checks every patched byte.
 Flashing and **reverting**: [docs/INSTALL.md](docs/INSTALL.md).
 
+## Developing
+
+`tools/dev.sh` runs the whole loop on your own computer:
+
+- **setup** (once): elekloader, the digiemu emulator and the pinned helper mods;
+- **test**: the synth engine;
+- **build**: your OS file from your own official OS;
+- **emu, emutest**: boot the build in digiemu and check every Digi Mono machine there, bit for bit;
+- **play**: open digiemu's window to play the build yourself.
+
+Steps, per operating system: [docs/DEVELOPING.md](docs/DEVELOPING.md).
+
 ## Building as elekloader mods
 
 The code also builds as linkable mods for [elekloader](https://github.com/irpina/elekloader), so it can

@@ -1,9 +1,11 @@
-# Reassemble every hook from src/ into bin/ (needs GNU binutils for m68k: m68k-linux-gnu-as/ld/objcopy/nm).
+# Reassemble every hook from src/ into bin/ (needs GNU binutils for m68k: as/ld/objcopy/nm).
+# Tool prefix: m68k-linux-gnu- (Linux), or m68k-elf- (macOS, Homebrew) when only that is installed; override: make CROSS=<prefix>
 # The results are committed, so building a firmware image does NOT need this toolchain (see tools/build.py).
-AS      = m68k-linux-gnu-as -mcpu=5475
-LD      = m68k-linux-gnu-ld
-OBJCOPY = m68k-linux-gnu-objcopy
-NM      = m68k-linux-gnu-nm
+CROSS  ?= $(if $(shell command -v m68k-linux-gnu-as),m68k-linux-gnu-,$(if $(shell command -v m68k-elf-as),m68k-elf-,m68k-linux-gnu-))
+AS      = $(CROSS)as -mcpu=5475
+LD      = $(CROSS)ld
+OBJCOPY = $(CROSS)objcopy
+NM      = $(CROSS)nm
 
 all: bin/tuner.bin bin/tuner_syms.inc bin/scope.bin bin/scope.sym bin/cable.bin bin/cc.bin bin/lock.bin bin/songoff.bin \
      bin/spectrum.bin bin/spec_syms.inc bin/scope_spectrum.bin bin/scope_spectrum.sym \

@@ -12,7 +12,8 @@ Each mod folder holds its mod.json and the files only it needs; the shared sourc
 the generated tables from bin/. They are copied into one staging folder per mod (out/elk/<id>/), which is
 handed to elekloader's SDK (python -m elekloader.sdk.build). The sources are assembled with ELK defined:
 the same code, linked by the SDK into the mod's RAM image instead of placed at fixed addresses.
-Needs m68k binutils (m68k-linux-gnu-as, -ld). Writes out/elk/<id>/out/<id>-<version>.elemod.
+Needs m68k binutils and gcc: m68k-linux-gnu-* (Linux) or Homebrew's m68k-elf-* (macOS, picked up automatically;
+set ELEKLOADER_CROSS to the prefix, e.g. m68k-elf-, to override). Writes out/elk/<id>/out/<id>-<version>.elemod.
 """
 import argparse, json, os, shutil, subprocess, sys
 
@@ -33,6 +34,13 @@ def main():
     ap.add_argument("--mods", nargs="+", default=MODS, help="mod folders to build (default: %(default)s)")
     a = ap.parse_args()
     env = dict(os.environ, PYTHONPATH=os.path.abspath(a.elekloader) + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    if "ELEKLOADER_CROSS" not in env:
+        have = {p: shutil.which(p + "gcc") for p in ("m68k-linux-gnu-", "m68k-elf-")}
+        if not have["m68k-linux-gnu-"] and have["m68k-elf-"]:
+            env["ELEKLOADER_CROSS"] = "m68k-elf-"      # Homebrew ships m68k-elf-*; the SDK defaults to m68k-linux-gnu-
+        elif not any(have.values()):
+            sys.exit("no m68k cross toolchain found: install binutils-m68k-linux-gnu + gcc-m68k-linux-gnu (Linux) "
+                     "or `brew install m68k-elf-gcc m68k-elf-binutils` (macOS), or set ELEKLOADER_CROSS to the prefix")
     built = []
     for mid in a.mods:
         src_dir = os.path.join(ROOT, "mods", mid)

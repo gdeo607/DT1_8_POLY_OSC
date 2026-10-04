@@ -132,7 +132,16 @@ python3 tools/build_elemods.py --stock <official OS 1.53 .syx> --elekloader <ele
 Then add them in elekloader's window (with its core mod), or on the command line:
 `python -m elekloader.patch --stock <official .syx> --mod core-2.0a.elemod --mod digipoly-1.0f.elemod --mod digimatrix-1.0b.elemod --mod digieq-1.0b.elemod --out custom.syx --version 2.0d`.
 Add `--mod digiutils-1.9a.elemod` for the "..." utility pages.
-The mods need m68k binutils to build; the `.elemod` files are built from your official file and are not stored here.
+The `.elemod` files are built from your official file and are not stored here. Building needs an m68k cross toolchain
+(binutils and gcc), which the SDK looks up as `m68k-linux-gnu-*`:
+
+| platform | install |
+|---|---|
+| Linux (Debian/Ubuntu) | `sudo apt install binutils-m68k-linux-gnu gcc-m68k-linux-gnu` |
+| macOS (Homebrew) | `brew install m68k-elf-gcc m68k-elf-binutils` |
+
+`tools/build_elemods.py` falls back to Homebrew's `m68k-elf-` prefix on its own when `m68k-linux-gnu-gcc` is absent.
+To use another toolchain, set `ELEKLOADER_CROSS` to its prefix (for example `ELEKLOADER_CROSS=m68k-elf-`) for the build.
 
 The master EQ is in the elekloader build only; since 1.0a it is its own mod, `digieq`
 ([docs/USAGE.md](docs/USAGE.md)).
